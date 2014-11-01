@@ -1,0 +1,10 @@
+#!/usr/bin/php -q
+<?php
+/*
+	This file is for compatibility with previous versions.
+	It simply runs cutebind.php
+*/
+
+require 'cutebind.php';
+
+?>
