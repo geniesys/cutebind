@@ -220,7 +220,8 @@ Cutebind as DNSBL/SBL service
 
 	'min_age' (number of days, numeric)
 	  Minimun age in days of the domain attempting connection. Default is 7 days.
-	  Enter "0" to disable this feature.
+	  Enter "0" to disable this feature. You can also add trusted domains such as
+	  those under your control to the whitelist.
 
 
 	sbl_lookup.php

@@ -25,17 +25,18 @@ function sbl_lookup( &$q, &$a ) {	// Spam Block List (SBL) handler
 	  (This rule is inactive. It also delays server response by a second or so.)
 
 	Release 2.1
-	- Domain age verification. This rule extracts domain creation date from public domain
+	- Domain Age Verification. This rule extracts domain creation date from public domain
 	  registration records and returns domain age in days. This rule is intended to block
-	  incomming connections from recently created domains. Default value is 7 days. You can
+	  incoming connections from recently created domains. Default value is 7 days. You can
 	  disable this feature by setting $settings['SBL']['min_age'] in config.php to "0".
+	  You can also add trusted domains such as those under your control to the whitelist.
 	  * Note: Failed lookups will not cause "blocked" status.
 
 	Below are some ideas on the logic that your custom rules can do:
 	- statistical analysis (how many emails came from this IP in a period of time);
 	- blocking based on Geographical location;
-	- "v=spf1..." text record analysis;
-
+	- "v=spf1..." text record analysis (to do it properly you'll also need value of "From:"
+	  header which we don't have at this point);
 */
 	global $settings;
 
