@@ -90,7 +90,7 @@ function rev_lookup( &$q, &$a ) {	// Reverse-lookup an IP address (addr-to-name 
 		//    echo '[ERROR] resolver() returned TRUE, but $a->??? was not set by resolver(). Why?'."\n";
 		//    print_r($q);
 		//}
-		// !!! NO "break" here. We want to continue with "gethostbyaddr()" when resolver() has not found anything.
+		// !!! NO "break" here. We want to continue with "dns_get_record()" when resolver() has not found anything.
 
 	case ($result = dns_get_record($q->l_host,DNS_PTR,$authns,$addtl)):		// this lookup needs to be done using '4.3.2.1.in-addr.arpa.' Function doesn't work using normal IPv4.
 

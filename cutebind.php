@@ -52,7 +52,7 @@ $settings = array(
 				),
 	);
 
-$ver = '2.0';
+$ver = '2.1';
 
 if (!function_exists('cli_set_process_title')) {function cli_set_process_title($t) {}}
 

@@ -5,7 +5,7 @@
 define('IS_64b',TRUE);
 $settings['listen']      = '192.168.1.16';			// IP to listen on (IP address of this host)
 $settings['listen_port'] = 53;					// DNS-server port
-$settings['minDNSworkers']=15;					// Minimum/Initial number of workers
+$settings['minDNSworkers']=10;					// Minimum/Initial number of workers
 $settings['maxDNSworkers']=25;					// Maximum number of workers
 $settings['setuser']     = '';					// You can set user of master process (sudo).
 $settings['setgroup']    = '';					// You can set group of master process (sudo).
@@ -24,7 +24,8 @@ $settings['DNS']	 = array(
 $settings['SBL']	 = array(					// SBL queries come in form similar to '182.127.253.188.sbl.domain.tld.' where 'sbl.domain.tld' is the name given to this DNS server
 				'hostmatch' => '.sbl.example.',		// and configured in your spam filter / mail server. This parameter must be equal or at least partially match this name. See README.txt
 				'return_ip' => '127.0.0.2',		// IP address returned when sender is blocked. Consult your mail server documentation for the expected address. They are usually in 127.0.0.x range.
-				'txt'       => 'www.domain.tld/sbl'	// Short text and/or URL returned along with the IP. Usually indicates the reason and/or where sender can obtain additional information.
+				'txt'       => 'www.domain.tld/sbl',	// Short text and/or URL returned along with the IP. Usually indicates the reason and/or where sender can obtain additional information.
+				'min_age'   => 7			// Minimun age in days of the domain attempting connection. Default is 7 days. "0" disables this feature.
 				);
 
 $settings['mysql']	 = array(				// Parameters for your MySQL connection

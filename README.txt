@@ -95,33 +95,43 @@ Cutebind as DNSBL/SBL service
 	that comes into your mail server. There is a number of paid and free DNSBL
 	services on the Internet. These services maintain a large number of so called
 	"honeypot" mailboxes. An automated process analyzes who sends mail to these
-	mailboxes and adds sender IP addresses	to BL database. Your mail server checks
+	mailboxes and adds sender IP addresses to BL database. Your mail server checks
 	IP addresses of incoming connections against one or more DNSBL services. If any
-	one of these services says that this IP is listed then connection is rejected.
+	one of these services reply that this IP is listed then connection is rejected.
 	Spammers (and businesses that facilitate such activity) are quite aware of these
 	measures. They use various techniques to avoid detection and exploit weaknesses
 	of DNSBL services. Such techniques include domains that exists only for a day,
 	frequent IP address rotation, and use of unregistered (anonymous) IP addresses.
 
-	From author's personal experience, free DNSBL services seem to block only about a
+	From author's personal oservation, free DNSBL services seem to block less than a
 	half of spam. Despite this fact, you should not disregard them. It has been noted
-	that vast majority of unsolicited mail that doesn't get blocked by DNSBL comes
+	that vast majority of unsolicited mail that doesn't get blocked by DNSBL's comes
 	from unregistered (anonymous) IP addresses. These addresses do not have a host
 	associated with it. Not even a generic name assigned by an ISP.
 	The RFC standard does not require sender to maintain a domain or PTR record for
 	the host in order to send mail. Since this is not a requirement, many mail servers
 	and DNSBL services do not check for this fact. It would be against RFC standard.
 	Requirement or not, author of this feature has found this to be an problem.
-	I have never seen a legitimate email that has came from	an anonymous IP. Have you?
+	I have never seen a legitimate email that came from anonymous IP. Have you?
+
+
+	DNSBL/SBL Statistics
+	--------------------
+	Log analysis shows that DNSBL "Anonymous IP" blocking rule blocks 71.8% connection
+	attempts on average. Statistics were collected over 10 days period for a small,
+	private domain. Your results may vary.
 
 
 	Extending SBL feature
 	---------------------
-	As of this version, cutebind includes provisions to serve as your own DNSBL/SBL
+	As of version 2.0, cutebind includes provisions to serve as your own DNSBL/SBL
 	service. Three built-in functions are provided to achive this goal:
 	1) sbl_whitelist()	- implements database-based "whitelist" functionality;
 	2) sbl_blacklist()	- implements database-based "blacklist" functionality;
 	3) sbl_anonymous_ip()	- implements detection of "Anonymous IP's"
+
+	Version 2.1
+	4) sbl_domain_age()	- implements detection and blocking based on domain age.
 
 	Two additional functions sbl_hostname_contains_ip() and sbl_test_ports() are
 	also included, but currently do not participate in the DNSBL desicion process.
@@ -129,15 +139,14 @@ Cutebind as DNSBL/SBL service
 	You may extend SBL feature even	further by adding more rules. Below are some ideas
 	of the logic that user-defined rules can do:
 
+	- maintain a list of known spammers (database);
 	- blocking based on geographical location;
 	- statistical analysis (how many emails came from this IP in a period of time);
-	- find-out how long ago sender's domain was registered (run whois?);
+	- "v=spf1..." text record analysis;
 
-	Verifications such as presence of an MX record and "v=spf1..." text record
+	* Verifications such as presence of an MX record and "v=spf1..." text record
 	analysis cannot be reliably done at this point. You will need to consider
-	value of From: header as well.
-
-	- maintain a list of known spammers (database);
+	value of "From:" header as well.
 
 	Keep in mind that this is not a spam filtering software. At this point, email
 	message hasn't actually arrived yet into you mail server, so there is not much
@@ -181,9 +190,9 @@ Cutebind as DNSBL/SBL service
 
 	config.php
 	----------
-	Config.php contains three settings related to SBL processing:
+	Config.php contains four settings related to SBL processing:
 
-	'hostmatch' -
+	'hostmatch'
 	  This string must fully or partially match the "sbl" name given to your DNS
 	  server. When server sees this string in the name being resolved the SBL process
 	  is triggered. Otherwise, regular resolution is performed.
@@ -199,39 +208,27 @@ Cutebind as DNSBL/SBL service
 	  dummy domain. You primary DNS must be able to resolve this name into an IP
 	  address. Use any means available including static entries in hosts/lmhosts files.
 
-	'return_ip' -
+	'return_ip'
 	  This is the IP address to be returned when sender is rejected. Usually, it is
 	  in 127.0.0.[2-9] range with .2 being most common. Other numbers indicate
 	  various reasons for rejections. Check your mail server documentation
 	  for expected IP address.
-	
-	'txt'       -
+
+	'txt'
 	  Text and/or URL returned along with the IP. Usually indicates the reason
 	  and/or where sender can obtain additional information.
+
+	'min_age' (number of days, numeric)
+	  Minimun age in days of the domain attempting connection. Default is 7 days.
+	  Enter "0" to disable this feature.
 
 
 	sbl_lookup.php
 	--------------
 	This file contains code related to DNSBL processing.
-	In this releaese, this module includes three functions that affect DNSBL results.
-	1) sbl_whitelist()	- implements database-based "whitelist" functionality;
-	2) sbl_blacklist()	- implements database-based "blacklist" functionality;
-	3) sbl_anonymous_ip()	- implements detection of "Anonymous IP's" (checks if
-	                          connecting IP has a hostname associated with it)
-
-	Two additional functions sbl_hostname_contains_ip() and sbl_test_ports() are also
-	included, but currently do not participate in the DNSBL desicion process.
-
-	Additional user-defined functions can be added to this file. Any PHP programmer should
-	be able to understand what needs to be done by analyzing the code in this file.
-	If you come-up with a useful rule please concider sharing it with others.
-
-
-	DNSBL/SBL Statistics
-	--------------------
-	Log analysis shows that DNSBL "Anonymous IP" blocking rule blocks 71.8% connection
-	attempts on average. Statistics were collected over 10 days period for a small,
-	private domain. Your results may vary.
+	Additional user-defined functions can be added to this file. Any PHP programmer
+	should be able to understand what needs to be done by analyzing the code in this
+	file. If you come-up with a useful rule please concider sharing it with others.
 
 	
 Changing Default DNS Timeout Settings

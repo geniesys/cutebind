@@ -15,33 +15,52 @@ function sbl_lookup( &$q, &$a ) {	// Spam Block List (SBL) handler
 	This SBL feature is first line of defence. Its purpose is to reject certain senders before
 	their mail clogs your mail server / spam filtering software.
 
+	The following detection methods are built into the system:
+	Release 2.0
+	- Database-based "whitelist" and "blacklist";
+	- "Anonymous IP" address detection (IP has no associated host);
+	- Host name contains host's IP address. ISP's often use generic names that repeat host IP
+	  address in some form. This rule is intended to detect such pattern (this rule is inactive);
+	- Port test. Check whether any standard SMTP and IMAP ports are open on sender's side.
+	  (This rule is inactive. It also delays server response by a second or so.)
 
-	- pattern analisys of the host name (ISP's use generic names that repeats the IP address in some form);
+	Release 2.1
+	- Domain age verification. This rule extracts domain creation date from public domain
+	  registration records and returns domain age in days. This rule is intended to block
+	  incomming connections from recently created domains. Default value is 7 days. You can
+	  disable this feature by setting $settings['SBL']['min_age'] in config.php to "0".
+	  * Note: Failed lookups will not cause "blocked" status.
 
 	Below are some ideas on the logic that your custom rules can do:
-	- maintain a list of known spammers (database);
 	- statistical analysis (how many emails came from this IP in a period of time);
 	- blocking based on Geographical location;
 	- "v=spf1..." text record analysis;
-	- find out how long ago sender's domain was registered (run whois?);
 
-	Below is a call to vendor function that implements SBL blocking	based on "Anonymous IP".
 */
 	global $settings;
 
 	$e = explode('.',$q->host);
 	$q->IP = $e[3].'.'.$e[2].'.'.$e[1].'.'.$e[0];		// 4.3.2.1.sbl.domain.tld. -> 1.2.3.4
 
-	if( sbl_whitelist($q,$a) ) {
+	if( sbl_whitelist($q->IP) ) {
 		$replycode = 0;			// Allow - IP is whitelisted. No further checks needed.
-	} elseif( sbl_blacklist($q,$a) ) {
+	} elseif( sbl_blacklist($q->IP) ) {
 		$replycode = 3;			// Block - IP is blacklisted. No further checks needed.
 	} else {
-		$results;			// An array of boolean values returned from our test functions.
-
 		$replycode = sbl_anonymous_ip($q,$a,$q2,$a2);
-	}
 
+		if($replycode == 0) {
+			if($age = sbl_domain_age($q2, $a2)) {
+				//echo '$age = '.$age."\n";
+				if( $age < $settings['SBL']['min_age'] ) {
+					$replycode = 3;
+					sbl_blacklist_add($q->IP,'not old enough');
+				}
+			}
+		} else {
+			sbl_blacklist_add($q->IP,'no hostname');
+		}
+	}
 
 	if ( $replycode == 0 ) {		// 0 = This IP has associated host or whitelisted.
 
@@ -53,18 +72,21 @@ function sbl_lookup( &$q, &$a ) {	// Spam Block List (SBL) handler
 
 			// Option 0 - Comment out next 2 options if client expects nothing (0 ANSWERs) in return.
 
-			// Option 1 - Return IP address of the host which is basically the same address that was asked in question.
+			// Option 1 - Return IP address of the host (which is basically the same address that was asked in question) followed by PTR record.
+			// Both records are part of ANswer collection.
 			$a->set_type('A');
-			$a->AN['A'] = Array($q2->IP => Array ('ttl' => $settings['DNS']['TTL']));		// add dummy record to ANswer collection
-			$a->AN['PTR'] = $a2->AN['PTR'];								// add dummy record to ANswer collection
+			$a->AN['A'] = Array($q2->IP => Array ('ttl' => $settings['DNS']['TTL']));
+			$a->AN['PTR'] = $a2->AN['PTR'];
 
-			// Option 2 - Option 1 plus additional PTR record.
-			// Use with caution! My email server doesn't care if PTR follows, but MS DNS Server rejects entire answer
-			//$a->AD['PTR'] = $a2->AN['PTR'];							// add virtual record to ANswer collection
+			// Option 2 - If above doesn't work try sending PTR as ADditional record.
+			// Use with caution! My email server doesn't care if PTR follows, but MS DNS Server rejects entire answer.
+			//$a->set_type('A');
+			//$a->AN['A'] = Array($q2->IP => Array ('ttl' => $settings['DNS']['TTL']));
+			//$a->AD['PTR'] = $a2->AN['PTR'];
 
-			// Option 3 - Respond with fixed/dummy IP address (must differ from $settings['SBL']['return_ip']).
-			// $a->set_type('A');
-			// $a->AN['A'] = Array('0.0.0.0' => Array ('ttl' => $settings['DNS']['TTL']));		// add virtual record to ANswer collection
+			// Option 3 - Respond with dummy IP address (must not be 127.0.0.x).
+			//$a->set_type('A');
+			//$a->AN['A'] = Array('0.0.0.0' => Array ('ttl' => $settings['DNS']['TTL']));		// add dummy record to ANswer collection
 
 			// Option 4 - Respond with different type of record.
 			/* It is also possible to return only PTR obtained in 2nd lookup which has the host name, but
@@ -101,14 +123,14 @@ function sbl_lookup( &$q, &$a ) {	// Spam Block List (SBL) handler
 	return $replycode;
 }
 
-function sbl_whitelist( &$q, &$a ) {
+function sbl_whitelist( $ip ) {
 	/*
 	  This rule checks database to see if IP address is whitelisted (not a spammer).
 	*/
 	global $settings, $db;
 
-	if ($db) {
-		$sql = "SELECT * FROM whitelist WHERE ip='$q->IP'";
+	if( $db = connect_db() ) {
+		$sql = "SELECT * FROM whitelist WHERE ip='$ip'";
 		if ($result = mysqli_query($db,$sql)) {
 		    //printf("$sql returned %d rows.\n", mysqli_num_rows($result));
 		    if(mysqli_num_rows($result) > 0) {
@@ -117,18 +139,17 @@ function sbl_whitelist( &$q, &$a ) {
 		    }
 		}
 	}
-
 	return false;
 }
 
-function sbl_blacklist( &$q, &$a ) {
+function sbl_blacklist( $ip ) {
 	/*
 	  This rule checks database to see if IP address is blacklisted (spammer).
 	*/
 	global $settings, $db;
 
-	if ($db) {
-		$sql = "SELECT * FROM blacklist WHERE ip='$q->IP'";
+	if( $db = connect_db() ) {
+		$sql = "SELECT * FROM blacklist WHERE ip='$ip'";
 		if ($result = mysqli_query($db,$sql)) {
 		    //printf("$sql returned %d rows.\n", mysqli_num_rows($result));
 		    if(mysqli_num_rows($result) > 0) {
@@ -137,7 +158,19 @@ function sbl_blacklist( &$q, &$a ) {
 		    }
 		}
 	}
+	return false;
+}
 
+function sbl_blacklist_add( $ip, $reason='' ) {
+	/*
+	  Add IP address to blacklist.
+	*/
+	global $settings, $db;
+
+	if( $db = connect_db() ) {
+		$sql = "REPLACE INTO blacklist(ip,source) VALUES ('$ip','sbl_lookup.php: ".$reason."')";
+		return mysqli_query($db,$sql,MYSQLI_ASYNC);
+	}
 	return false;
 }
 
@@ -207,6 +240,93 @@ function sbl_test_ports(&$q) {
 	}
 
 	return $retval;
+}
+
+function sbl_domain_age( &$q2, &$a2 ) {
+/*
+	Executes 'whois' for a domain in question, extracts domain creation date from the
+	result, returns difference in days between domain creation date and now.
+*/
+	global $settings, $dns_cache;
+
+	// do nothing if 'min_age' < 1 or is not set
+	if(!isset($settings['SBL']['min_age']) || $settings['SBL']['min_age'] < 1) return false;
+
+	$e = array_reverse(explode('.',key($a2->AN['PTR'])));
+	$str_domain = $e[1].'.'.$e[0];
+
+	// Check DNS cache for parameter 'age' added by previous lookup
+	if( isset( $dns_cache['table'][$str_domain]['age'] )) {
+		return $dns_cache['table'][$str_domain]['age'];
+	}
+
+	//echo '$ whois '.$str_domain."\n";
+	exec('whois '.$str_domain, $output);
+
+	foreach($output as $line) {
+		switch(true) {
+		case (stripos($line,'creation date:') !== false):
+			$d = substr(trim($line),15);
+			break;
+		case (stripos($line,'created on:')    !== false):
+			$d = substr(trim($line),12);
+			break;
+		case (stripos($line,'domain registration date:') !== false):
+			$d = substr(trim($line),27);
+			break;
+		case (stripos($line,'created date:')  !== false):
+			$d = substr(trim($line),14);
+			break;
+		case (stripos($line,'created:')       !== false):
+			$d = substr(trim($line),10);
+			break;
+		case (stripos($line,'registered on:') !== false):
+			$d = substr(trim($line),15);
+			break;
+
+		}
+		if(isset($d)) break;
+	}
+
+	if(!isset($d)) {
+		print_r($output);
+		return false;
+	}
+
+	//echo $line."\n";
+	$d = trim($d);
+
+	if(date_parse($d)['error_count'] > 0) {
+		$patterns = array(
+			'/.*(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2}).*/' => '$1-$2-$3 $4:$5:$6',
+			// add patterns and corresponding replacements as needed
+		);
+		foreach($patterns as $p => $r) {
+			//echo '$p = '.$p.', $r = '.$r."\n";
+			$x = preg_filter($p, $r, $d);
+			//echo '$x = '.$x."\n";
+			if(date_parse($x)['error_count'] == 0) {
+				$d = $x;
+				break;
+			}
+		}
+	}
+
+	if(date_parse($d)['error_count'] == 0) {
+		$date1 = new DateTime('now');
+		$date2 = new DateTime($d);
+		$interval = $date1->diff($date2);
+		// To prevent running whois multiple times for the same domain we are going to store this interval value in $dns_cache under name 'age'.
+		$dns_cache['table'][$str_domain][0]    = time()+(60*60*12);	// expires in 12 hours
+		$dns_cache['table'][$str_domain]['age']= $interval->days;
+		// It is also possible to store this value together with the host from which domain was extracted, but this has two potentially unwanted
+		// consiquences: a) it will be removed when host expires from cache and b) it will serve its purpose only for the same remote host, not entire domain.
+		// $dns_cache['table'][$q2->IP]['PTR'][key($a2->AN['PTR'])]['age'] = $interval->days;
+		return $interval->days;
+	} else {
+		echo "sbl_domain_age() - can't convert '$line' to a date. You may want to add aditional pattern to reformat this value into a date string.\n";
+		return false;
+	}
 }
 
 ?>
