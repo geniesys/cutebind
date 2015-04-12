@@ -1,19 +1,19 @@
 <?php
-$dns_cache = array(							// DNS cache array
-	'TTL'		=> 300,						// Default time for records to remain in cache (sec). Please not this is not the same as 'ttl' of a DNS record.
-	'DIRTY'		=> TRUE,					// Flag indicating whether or not cache has been modified and needs to be put into shared memory. Keep default as TRUE to force initial write into shared memory.
-	'DEBUG'		=> FALSE, 					// Turn debugger on/off. It prints additional debug messages related to cache operations.
-	'table'	=> array(						// Hash-table
-			'localhost.'	=> array(			// This will never be used because static record in $table always takes highrt priority. I just want to initialize this table with something. Do no worry. It will expire in 10 sec.
-						time()+10,		// expires after this time (unix timestamp, see php time() function). To access this element use [0].
-						'A'   => array('127.0.0.1' => array('ttl'=>10)),
-						'AAAA'=> array('::1'       => array('ttl'=>10))
-						),
-			'127.0.0.1.'	=> array(			// This will never be used because static record in $table always takes highrt priority. I just want to initialize this table with something. Do no worry. It will expire in 10 sec.
-						time()+10,		// expires after this time (unix timestamp, see php time() function). To access this element use [0].
-						'PTR' => array('localhost' => array('ttl'=>10))
-						)
+$dns_cache = array(				// DNS cache array
+	'TTL'	=> 300,				// Default time for records to remain in cache (sec). Please not this is not the same as 'ttl' of a DNS record.
+	'DIRTY'	=> TRUE,			// Flag indicating whether or not cache has been modified and needs to be put into shared memory. Keep default as TRUE to force initial write into shared memory.
+	'DEBUG'	=> FALSE, 			// Turn debugger on/off. It prints additional debug messages related to cache operations.
+	'table'	=> array(			// Hash-table
+		'localhost.'	=> array(	// This will never be used because static record in $table always takes highrt priority. I just want to initialize this table with something. Do no worry. It will expire in 10 sec.
+			time()+10,		// expires after this time (unix timestamp, see php time() function). To access this element use [0].
+			'A'   => array('127.0.0.1' => array('ttl'=>10)),
+			'AAAA'=> array('::1'       => array('ttl'=>10))
 			),
+		'127.0.0.1.'	=> array(	// This will never be used because static record in $table always takes highrt priority. I just want to initialize this table with something. Do no worry. It will expire in 10 sec.
+			time()+10,		// expires after this time (unix timestamp, see php time() function). To access this element use [0].
+			'PTR' => array('localhost' => array('ttl'=>10))
+			)
+		),
 	);
 
 $cache = &$dns_cache['table'];		// get reference to inline cache hash-table.

@@ -126,12 +126,15 @@ Cutebind as DNSBL/SBL service
 	---------------------
 	As of version 2.0, cutebind includes provisions to serve as your own DNSBL/SBL
 	service. Three built-in functions are provided to achive this goal:
-	1) sbl_whitelist()	- implements database-based "whitelist" functionality;
-	2) sbl_blacklist()	- implements database-based "blacklist" functionality;
-	3) sbl_anonymous_ip()	- implements detection of "Anonymous IP's"
+	1) dnsbl_whitelist()	- implements database-based "whitelist" functionality;
+	2) dnsbl_blacklist()	- implements database-based "blacklist" functionality;
+	3) dnsbl_anonymous_ip()	- implements detection of "Anonymous IP's"
 
 	Version 2.1
-	4) sbl_domain_age()	- implements detection and blocking based on domain age.
+	4) sbl_domain_age() 	- implements detection and blocking based on domain age.
+
+	Version 2.2
+	5) surbl_check($url)   - implements SURBL functionality.
 
 	Two additional functions sbl_hostname_contains_ip() and sbl_test_ports() are
 	also included, but currently do not participate in the DNSBL desicion process.

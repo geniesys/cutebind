@@ -130,6 +130,7 @@ function run_worker($wtype = '') {
 		shmop_delete($ipc['dns-status-map']);	// delete only. do not close - other workers may still be accessing it. Master will take care of it.
 		shmop_delete($ipc['dns-q-counter']);
 		shmop_delete($ipc['dns-cache']);
+		if($db) mysqli_close($db);
 		exit(0);
 	}
 
@@ -226,7 +227,8 @@ function run_worker($wtype = '') {
 		// Load/reload cache from shared memory before each new resolution
 		if(!dns_cache_get()) echo "[ERROR] Unable to load/reload cache from shared memory.\n";
 
-		if( strpos($q->l_host,$settings['SBL']['hostmatch']) ) {	// trigger SBL processing only when the hostname contains string specified in $settings['SBL']['hostmatch']. See README.txt
+		// Call appropriate lookup method.
+		if( strpos($q->l_host,$settings['SBL']['hostmatch']) ) {		// Trigger SBL processing only when the hostname contains string specified in $settings['SBL']['hostmatch']. See README.txt
 			$qinfo['REPLYCODE'] = sbl_lookup($q,$a);
 		} elseif (($q->QTYPE == 'PTR') || ($qinfo['OPCODE'] == '1') || (substr($q->l_host,-14) == '.in-addr.arpa.')) {
 			$qinfo['REPLYCODE'] = rev_lookup($q,$a);
@@ -329,15 +331,18 @@ function run_worker($wtype = '') {
 
 		if(! dns_cache_put()) echo "[ERROR] Unable to write dns_cache into shared memory\n";		// after each query write $dns_cache back into shared memory
 
-		shmop_write($ipc['dns-status-map'],str_repeat("\x00",16),($hash_table_offset+$zinfo[2]*16));	// Tell other workers that I have finished resolving.
+		shmop_write($ipc['dns-status-map'],str_repeat("\x00",16),($hash_table_offset+$zinfo[2]*16));	// Tell other workers that I have finished resolving (zerro-out memory at corresponding offset).
 
 		//  ----- log entry -----
 		if ($settings['logging']) {
-			if (isset($a->REVERSE) && $a->REVERSE) {
-				$lp = $q->QTYPE.' ('.$q->IP.') -> ';
-			} else {
-				$lp = $q->QTYPE.' (\''.$q->host.'\') -> ';
-			}
+			//if (isset($a->REVERSE) && $a->REVERSE) {
+			//	$lp = str_pad($q->QTYPE,3).' ('.$q->IP . ') -> ';
+			//} else {
+			//	$lp = str_pad($q->QTYPE,3).' ('.$q->host.') -> ';
+			//}
+
+			$lp = str_pad($q->QTYPE,3).' ('. ( (isset($a->REVERSE) && $a->REVERSE) ? $q->IP : $q->host ) .') -> ';
+
 			switch($qinfo['REPLYCODE']) {
 			case 0: $lp .= $a->get_destination();	break;
 			case 1: $lp .= 'Query packet error';	break;
@@ -346,7 +351,8 @@ function run_worker($wtype = '') {
 			case 4: $lp .= $q->QTYPE.' not found';	break;
 			case 5: $lp .= 'REFUSED'; break;
 			}
-			log_access($lp = $zinfo[0].' ['.$peer.'] '.$a->src.' '.str_pad(round((microtime(true)-$time)*1000,1),7,' ',STR_PAD_LEFT).' ms (OPCODE='.$qinfo['OPCODE'].',RCODE='.$qinfo['REPLYCODE'].',CLASS='.$q->QCLASS.') '.$lp);
+			//log_access($lp = $zinfo[0].' ['.$peer.'] '.$a->src.' '.str_pad(round((microtime(true)-$time)*1000,1),7,' ',STR_PAD_LEFT).' ms (OPCODE='.$qinfo['OPCODE'].',RCODE='.$qinfo['REPLYCODE'].',CLASS='.$q->QCLASS.') '.$lp);
+			log_access($lp = $zinfo[0].' ['.$peer.'] '.$a->src.' '.str_pad(round((microtime(true)-$time)*1000,1),7,' ',STR_PAD_LEFT).' ms '.$lp);
 		}
 	    }		// for ($qn = 0; $qn < $qinfo['QDCOUNT']; ++$qn)
 	}	// if ($qinfo['QR'] == '0')

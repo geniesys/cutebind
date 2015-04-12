@@ -1,8 +1,10 @@
 <?php
 /*
-	This is cutebind configuration file. Modify these settings according to your environment.
+	This is cutebind configuration file. Modify these settings according to your environment
+    and save as config.my.php to prevent accidental override.
 */
 define('IS_64b',TRUE);
+$settings['DEBUG']       = FALSE;				// Prints various debugging information mostly about what it is doing. There are many commented-out lines of code that can be used to debug particular portion of the code.
 $settings['listen']      = '192.168.1.16';			// IP to listen on (IP address of this host)
 $settings['listen_port'] = 53;					// DNS-server port
 $settings['minDNSworkers']=10;					// Minimum/Initial number of workers
@@ -29,15 +31,36 @@ $settings['SBL']	 = array(					// SBL queries come in form similar to '182.127.2
 				);
 
 $settings['mysql']	 = array(				// Parameters for your MySQL connection
-				'host' => '192.168.1.17',
-				'port' => '',
-				'user' => 'cutebind',
-				'pass' => 'password',
+				'host' => '192.168.1.17',   // IP address of your MySQL server or localhost
+				'port' => '',               // default port is 3306
+				'user' => 'cutebind',       // also see cuteresolve.sql (bottom of the file)
+				'pass' => 'password',       // also see cuteresolve.sql (bottom of the file)
 				'base' => 'cuteresolve'		// 'cuteresolve' is the default schema name for this project.
 			);
 
-$settings['DEBUG'] = FALSE;					// Prints various debugging information mostly about what it is doing. There are many commented-out lines of code that can be used to debug particular portion of the code.
+/*
+    $REJECT_REASON_ENUM allows for translation of numeric return codes from sbl module to textual messages.
+    Corresponding value is appended to $settings['SBL']['txt']. The values can be customized here.
+    If you use URL, please use a hash mark (#) as the first character to keep URL syntax valid.
+    Default values are the same as corresponding numeric codes.
+    Examples:
+        1 => '#1'           -> www.domain.tld/sbl#1
+        1 => '#Blacklisted' -> www.domain.tld/sbl#Blacklisted
+        1 => ''             -> www.domain.tld/sbl
 
+    Note: Being too descriptive can tip spammers.
+*/
+$REJECT_REASON_ENUM = array(
+	1   => '#1',	// Blacklisted
+	2   => '#2',	// Internal server error
+	3   => '#3',	// Host/domain not found
+	4   => '#4',	// (not used)
+	5   => '#5',	// Mailformed IP
+	6   => '#6',	// Minimun Domain Age
+	7   => '#7',	// hostname contains host's IP address (ISP's usually assign generic names containing IP address which could indicate a possible dinamic IP)
+	8   => '#8',	// Email contains URL(s) to blacklisted site
+	9   => '#9',	// (not used)
+);
 
 function resolver(&$q,&$a,$init = FALSE) {
 /*

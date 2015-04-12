@@ -2,10 +2,11 @@
 ini_set('display_errors','On');
 error_reporting(E_ALL);
 define('COREBIND_ROOT',dirname(__FILE__).'/');
-define('DNS_CACHE_SIZE', 1024 * 64);					// Size of shared memory used for cache (Bytes) . Default is 64Kb
+define('DNS_CACHE_SIZE', 1024 * 32);					// Size of shared memory used for cache (Bytes) . Default is 32Kb
 
 /*
-	Default configuration parameters. Do not change these values here. Use config.php to specify your user-defined setting.
+	Below are minimum default configuration parameters needed to start server without errors.
+	Do not change these values here. Use config.php to override it with your user-defined setting.
 */
 
 $settings = array(
@@ -52,7 +53,7 @@ $settings = array(
 				),
 	);
 
-$ver = '2.1';
+$ver = '2.2';
 
 if (!function_exists('cli_set_process_title')) {function cli_set_process_title($t) {}}
 
@@ -64,34 +65,44 @@ $_SERVER['argv'][1] = '';
 $args = getArgs($_SERVER['argv']);
 $args_ex = '';
 
+// Load configuration file (in order of priority)
 if (isset($args['configfile'])) {				// See if alternative configuration file is specified in the command line.
-	$settings['configfile'] = $args['configfile'];		// overwrite $settings['configfile']
+	$settings['configfile'] = $args['configfile'];		// update $settings['configfile']
 	include $settings['configfile'];			// and load it
-} elseif( file_exists('config.my.php') ) {
-	include 'config.my.php';
+} elseif( file_exists('config.my.php') ) {			// my personalized configuration
+	$settings['configfile'] = 'config.my.php';		// update $settings['configfile']
+	include 'config.my.php';				// and load it
 } elseif( $settings['configfile'] !== '') {
 	include $settings['configfile'];			// Load configuration file specified in $settings['configfile'] (default is config.php)
 }
 
-if (!function_exists('resolver')) {							// Test whether function resolver() is defined
-	function resolver(&$q,&$a) {return false;}					// If not, define a dummy resolver() that does nothing.
+echo "\n";
+
+echo '[INIT] Configuration file: '.$settings['configfile']."\n";
+
+if (!function_exists('resolver')) {				// Test whether function resolver() is defined
+	function resolver(&$q,&$a) {return false;}		// If not, define a dummy resolver() that does nothing.
+	echo '[INIT] User-defined resolver() function is not declared. Using dummy recolver() which does nothing.'."\n";
 } else {
-	resolver($null,$null,TRUE);							// Call resolver() to init database connection (No longer necessary since $db is now global)
+	resolver($null,$null,TRUE);				// Call resolver() to init database connection (No longer necessary since $db is now global)
+	echo '[INIT] User-defined resolver() function exists.'."\n";
 }
 
-foreach ($args as $k => $v) {								// Itterate command line parameters and update $settings
+
+foreach ($args as $k => $v) {					// Iterate command line parameters and update $settings
 	$ok = TRUE;
 	switch($k) {
 	case 'pidfile'	   : $settings[$k] = $v; break;
 	case 'listen'	   : $settings['listen'] = $v; break;
 	case 'listenport'  : $settings['listen_port'] = $v; break;
 	case 'cutebindpath': $settings[$k] = $v; break;
-	case 'configfile'  : $settings[$k] = $v; break;
+	//case 'configfile'  : $settings[$k] = $v; break;	// already taken care above
 	case 'logging'	   : $settings[$k] = (int) $v; break;
 	case 'logstorage'  : $settings[$k] = $v; break;
 	case 'setuser'     : $settings[$k] = $v; break;
 	case 'setgroup'    : $settings[$k] = $v; break;
 	case 'intfile'     : $settings[$k] = $v; break;
+	case 'debug'	   : $settings['DEBUG'] = true; break;
 	default:
 		fwrite(STDERR,'[WARN] Unknown parameter \''.$k."'\n");
 		$ok = FALSE;
@@ -103,8 +114,6 @@ unset($args);	// don't need it anymore
 
 $pidfile = realpath($settings['pidfile']);
 if (!file_exists($pidfile)) touch($pidfile);
-
-echo "\n";
 
 if ($runmode != 'master') { // We are control script (Command Line Interface)
 	// Reason for having it in separate include file is that the master process nor workers

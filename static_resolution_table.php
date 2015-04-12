@@ -32,16 +32,19 @@ $table = Array(
 			'mail.example.tld'  => Array('ttl' => 5,'pri' => 20)
 			),
 		'TXT' => Array(
-			0                   => Array('ttl' => 600,
+			0                   => Array('ttl' => 5,
 			                             'txt' => 'v=spf1 a mx include:gmail.com -all'
+					       ),
+			1                   => Array('ttl' => 5,
+			                             'txt' => 'This info comes from Cutebind static_resolution_table.php'
 					       )
 			),
 		'SOA'=> Array(
 			'ns1.example.tld'   => Array('ttl'        => 10800,
 						     'rname'      => 'admin.example.tld',
-						     'serial'     => 2014072800,
-						     'refresh'    => 3600,
-						     'retry' 	  => 3600,
+						     'serial'     => 2014072800,	// must not excede 10 digits
+						     'refresh'    => 900,
+						     'retry' 	  => 600,
 						     'expire'	  => 3600,
 						     'minimum-ttl'=> 300,
 						)
@@ -80,5 +83,53 @@ $table = Array(
 		),
 );
 
+// Creating Authority Zone for sbl server.
+
+if( $settings['SBL'] ) {
+
+	$table[''] = Array(
+/*		'A' => Array(
+			'1.2.3.4' => Array ('ttl' => 5),
+			'1.2.3.5' => Array ('ttl' => 5)
+			),
+		'AAAA'=> Array(
+			'2607:f8b0:4002:802::1015' => Array('ttl' => 5),
+			'2607:f8b0:4002:802::1016' => Array('ttl' => 5)
+			),
+		'NS' => Array(
+			'ns1.example.tld'   => Array('ttl' => 10800)
+			),
+		'MX' => Array(
+			'smtp.example.tld'  => Array('ttl' => 5,'pri' => 10),
+			'mail.example.tld'  => Array('ttl' => 5,'pri' => 20)
+			),
+		'TXT' => Array(
+			0                   => Array('ttl' => 600,
+			                             'txt' => 'v=spf1 a mx include:gmail.com -all'
+					       )
+			),
+*/		'SOA'=> Array(
+			'sbl.example.tld'  => Array('ttl'		=> 10800,
+						     'rname'		=> 'admin.example.tld',
+						     'serial'		=> date('YmdH'),	// must not excede 10 digits
+						     'refresh'		=> 600,
+						     'retry'		=> 600,
+						     'expire'		=> 86400,
+						     'minimum-ttl'	=> 300,
+						)
+			),
+
+		'sbl.example.tld.' => Array(
+			'NS' => Array(
+				'192.168.1.16'	=> Array('ttl' => 300)
+			),
+
+			'A' => Array(
+				'192.168.1.16'	=> Array ('ttl' => 300)
+				),
+			),
+		);
+
+}
 
 ?>

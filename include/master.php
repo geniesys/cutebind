@@ -39,7 +39,7 @@ if (!sizeof($dns_sockets)) {
 
 for ($i = 0; $i < $settings['minDNSworkers']; ++$i) run_worker('dns');
 
-echo "[STATUS] CuteBind $ver. System is up. Accepting connections on ".$settings['listen'].':'.$settings['listen_port'].".\n\n";
+echo "[STATUS] CuteBind $ver. System is up ".(($settings['DEBUG']) ? '(debugger is ON)':'(debugger is OFF)').". Accepting connections on ".$settings['listen'].':'.$settings['listen_port'].".\n\n";
 
 define('START_TIME',time());
 

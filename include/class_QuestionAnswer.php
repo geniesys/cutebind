@@ -205,34 +205,34 @@ Answer Object
 			foreach( $recordset as $key => $record ) {
 				//echo 'Answer->get_data():196 - Looking at '.$type.' record for '.$key."\n";
 
-				// Nothe that array $record is used only once per itteration. We don't need to remember it beyond this switch().
+				// DISREGARD THIS >>> Nothe that array $record is used only once per itteration. We don't need to remember it beyond this switch().
 				// We will override it with a binary string produced as the result of the conversion (destroying original array).
 				switch($type) {
 				case 'A':
-					$record = _dword(ip2long($key));		// convert IPv4 to its binary form
+					$rdata = _dword(ip2long($key));		// convert IPv4 to its binary form
 					break;
 				case 'NS':
 					$this->HAS_TARGETS = true;			// This record contains name of a host that needs to be recursively looked up for its IP's
-					$record = _labels($key);
+					$rdata = _labels($key);
 					break;
 				case 'CNAME':
 					$this->HAS_TARGETS = true;			// This record contains name of a host that needs to be recursively looked up for its IP's
-					$record = _labels($key);
+					$rdata = _labels($key);
 					break;
 				case 'PTR':
-					$record = _labels($key.'.');			// convert host/domain to its binary form
+					$rdata = _labels($key.'.');			// convert host/domain to its binary form
 					break;
 				case 'AAAA':
-					$record = inet_pton($key);			// convert IPv6 to its binary form
+					$rdata = inet_pton($key);			// convert IPv6 to its binary form
 					break;
 				case 'MX':
 					$this->HAS_TARGETS = true;			// This record contains name of a host that needs to be recursively looked up for its IP's
-					$record = _word($record['pri']).
+					$rdata = _word($record['pri']).
 						  _labels($key);			// convert and format MX to its binary form
 					break;
 				case 'SOA':						// Note: There is only one SOA allowed per domain, but we don't check for this.
 					$this->HAS_TARGETS = true;			// This record contains name of a host that needs to be recursively looked up for its IP's
-					$record = _labels($key).
+					$rdata = _labels($key).
 						  _labels($record['rname']).
 						  _dword ($record['serial']).
 						  _dword ($record['refresh']).
@@ -241,20 +241,41 @@ Answer Object
 						  _dword ($record['minimum-ttl']);	// convert and format SOA to its binary form
 					break;
 				case 'SRV':
-					$record = _word($record['pri']).
+					$rdata = _word($record['pri']).
 						  _word($record['weight']).
 						  _word($record['port']).
 						  _labels($key);			// convert and format SRV to its binary form
 					break;
 				case 'HINFO':
-					$record = chr(strlen($record['cpu'])).
+					$rdata = chr(strlen($record['cpu'])).
 						  $record['cpu'].
 						  chr(strlen($record['os'])).
 						  $record['os'];			// convert and format HINFO to its binary form
 					break;
 				case 'TXT':
-					$record = chr(strlen($record['txt'])).
-						  $record['txt'];			// convert and format TXT to its binary form
+					// TXT records over 255 bytes must be broken into multiple chunks of 255 bytes or less.
+					// First byte of each chunk indicates length of data that follows.
+					// rfc1035 states that total TXT length can be up to 65535 bytes, but in other places it mentions that
+					// whole response should fit into one UDP packet which is
+					// max. 65,535 − 8 byte UDP header − 20 byte IP header = 65,507 bytes practical limit for the data length
+					// minus up to 256 bytes of the chunk length byte prefixes = 65,251 of actual data.
+					// So, I would not push it over 64-65K.
+
+					// First, lets check if we already have 'entries' array. If not, and length of our 'txt' is > 255, create it.
+					if( strlen($record['txt']) > 255 and !isset($record['entries']) ) {
+						$record['entries'] = str_split($record['txt'], 255);
+					}
+					// Next, if length of our 'txt' is > 255 then use 'entries' array to build multiple TXT records. Otherwise
+					// build simple single TXT record.
+					if( strlen($record['txt']) > 255 and isset($record['entries']) ) {
+						$str = '';
+						foreach($record['entries'] as $chunk) {
+							$str .= chr(strlen($chunk)).$chunk;
+						}
+						$rdata = $str;
+					} else {
+						$rdata = chr(strlen($record['txt'])).$record['txt'];
+					}
 					break;
 				default:
 					echo '[!] Query of type '.$this->QTYPE." is not supported.\n";
@@ -273,8 +294,8 @@ Answer Object
 				$answer .= _word($QTYPES[$type]);		//p1-1
 				$answer .= _word($this->QCLASS_INT);		//p1-2
 				$answer .= _dword( isset($record['ttl']) ? $record['ttl'] : $settings['DNS']['TTL'] );	// if possible, use TTL received from parent DNS server. Otherwise use default TTL.
-				$answer .= _word(strlen($record));
-				$answer .= $record;
+				$answer .= _word(strlen($rdata));
+				$answer .= $rdata;
 
 			} // foreach $record
 		    } // foreach $recordset
@@ -305,9 +326,9 @@ Answer Object
 				switch($type) {
 				case 'MX' :	$b[] = $record['pri'].'='.$key; break;
 				case 'SRV':	$b[] = $record['pri'].'='.$key.':'.$record['port'].','.$record['weight']; break;
-				case 'TXT':	$b[] = substr($record['txt'],0,23).'..'; break;
+				case 'TXT':	$b[] = (strlen($record['txt']) > 53) ? substr($record['txt'],0,50).'...' : $record['txt']; break;
 				case 'SOA':	$b[] = $record['serial'].'='.$key.','.$record['rname'];	break;
-				case 'HINFO':	$b[] = 'cpu='.$record['cpu'].', os='.$record['os'];	break;
+				case 'HINFO':	$b[] = 'cpu='.$record['cpu'].', os='.$record['os']; break;
 				default:
 				      unset($record['ttl']);
 				      $b[] = $key.'=['.implode(',',$record).']';

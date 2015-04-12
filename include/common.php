@@ -3,7 +3,7 @@
 function connect_db() {
 	global $db, $settings;
 
-	if( $db && mysqli_ping($db) ) return $db;		// already connected. Quit immediately.
+	if( $db && @mysqli_ping($db) ) return $db;		// already connected. Quit immediately.
 
 	if( !empty($settings['mysql']) ) {
 		$p = &$settings['mysql'];
