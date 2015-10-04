@@ -134,7 +134,7 @@ Cutebind as DNSBL/SBL service
 	4) sbl_domain_age() 	- implements detection and blocking based on domain age.
 
 	Version 2.2
-	5) surbl_check($url)   - implements SURBL functionality.
+	5) surbl_check($domain) - implements SURBL functionality.
 
 	Two additional functions sbl_hostname_contains_ip() and sbl_test_ports() are
 	also included, but currently do not participate in the DNSBL desicion process.

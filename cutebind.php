@@ -253,6 +253,7 @@ if(isset($settings['mysql']['host'])) {
 	echo mysqli_connect_error()."\n";
 	echo "[WARN] All functions that require database access will not be available.\n";
     }
+    unset($db);
 }
 
 echo "[STATUS] Cache: ".((int)DNS_CACHE_SIZE/1024).' KB; '.count($dns_cache['table']).' hosts, '.$i.' bytes, '.round($i*100/DNS_CACHE_SIZE,2).'% usage; TTL '.$dns_cache['TTL']." sec.\n";

@@ -8,7 +8,16 @@
 	suitable to be part of the response packet.
 */
 
-class _base_QuestionAnswer {		// Common parts of Question and Answer classes. Don't use this class directly.
+abstract class _base_QuestionAnswer {		// Common parts of Question and Answer classes. Don't use this class directly.
+/*
+	Example of Question Object
+	(
+	    [QTYPE_INT]  => 1
+	    [QCLASS_INT] => 1
+	    [QTYPE]      => A
+	    [QCLASS]     => IN
+	)
+*/
 	public $QTYPE;
 	public $QTYPE_INT;
 	public $QCLASS	   = 'IN';
@@ -55,17 +64,20 @@ class _base_QuestionAnswer {		// Common parts of Question and Answer classes. Do
 
 class Question extends _base_QuestionAnswer {
 /*
-Question Object
-(
-    [host] => twitter.com.
-    [l_host] => twitter.com.
-    [bin_host] => twittercom
-    [IP] => Array()
-    [QTYPE_INT] => 1
-    [QCLASS_INT] => 1
-    [QTYPE] => A
-    [QCLASS] => IN
-)
+	Example of Question Object after being extended
+	(
+	    [QTYPE_INT]  => 1
+	    [QCLASS_INT] => 1
+	    [QTYPE]      => A
+	    [QCLASS]     => IN
+
+	    [host]       => twitter.com.
+	    [l_host]     => twitter.com.
+	    [bin_host]   => twittercom
+	    [IP]         => Array()
+	    [$peer_ip]   =>
+	    [$peer_port] =>
+	)
 */
 	public $host;
 	public $l_host;
@@ -76,7 +88,7 @@ Question Object
 
 	public function Question( &$data = null, $peer = null) {	// initialization function called automatically.
 		// You can pass $data and $peer parameters to have this object initialize itself in one step.
-		// Otherwise, call set_data($data) and set_peer($peer) separately right after creating your object.
+		// Otherwise call set_data($data) and set_peer($peer) separately right after creating your object.
 		if(! is_null($data) )	$this->set_data($data);
 		if(! is_null($peer) )	$this->set_peer($peer);		// used in GeoIP resolver() only
 	}
@@ -95,7 +107,7 @@ Question Object
 		$this->set_class(_get_word($data));
 	}
 
-	public function set_peer($peer) {	// Currently needed by GeoIP resolver() only. May want to pass it there somehow else and remove from here (?)
+	public function set_peer($peer) {
 		$e = explode(':',$peer);
 		$this->peer_ip   = $e[0];
 		$this->peer_port = $e[1];
@@ -104,25 +116,25 @@ Question Object
 
 class Answer extends _base_QuestionAnswer {
 /*
-Answer Object
-(
-    [host] => 
-    [l_host] => 
-    [bin_host] => 
-    [REVERSE] => 
-    [HAS_TARGETS] => 
-    //[R_DOMAIN] => 
-    //[RDATA] => Array()
-    [AN] =>
-    [AU] =>
-    [AD] =>
-    [src] => '?'
-    [dest] => ''
-    [QTYPE_INT] => 1
-    [QCLASS_INT] => 1
-    [QTYPE] => A
-    [QCLASS] => IN
-)
+	Example of Answer Object
+	(
+	    [host]     => 
+	    [l_host]   => 
+	    [bin_host] => 
+	    [REVERSE]  => 
+	    [HAS_TARGETS] => 
+	    //[R_DOMAIN]  => 
+	    //[RDATA]     => Array()
+	    [AN]   =>
+	    [AU]   =>
+	    [AD]   =>
+	    [src]  => '?'
+	    [dest] => ''
+	    [QTYPE_INT]  => 1
+	    [QCLASS_INT] => 1
+	    [QTYPE]      => A
+	    [QCLASS]     => IN
+	)
 */
 	public $host;
 	public $l_host;
@@ -320,13 +332,14 @@ Answer Object
 		  foreach( $collection as $type => $recordset ) {
 		    if($type == '0') continue;				// Never mind. This is record expiration timestamp.
 		    if( in_array($type,array('A','CNAME','PTR','NS','AAAA')) ) {
-			$a[] = $type.' ('.implode(',',array_keys($recordset)).')';
+			//$a[] = $type.' ('.implode(',',array_keys($recordset)).')';
+			$a[] = $type.' '.implode(',',array_keys($recordset));
 		    } elseif( count($recordset) ) {
 			foreach( $recordset as $key => $record ) {
 				switch($type) {
 				case 'MX' :	$b[] = $record['pri'].'='.$key; break;
 				case 'SRV':	$b[] = $record['pri'].'='.$key.':'.$record['port'].','.$record['weight']; break;
-				case 'TXT':	$b[] = (strlen($record['txt']) > 53) ? substr($record['txt'],0,50).'...' : $record['txt']; break;
+				case 'TXT':	$b[] = '\''.((strlen($record['txt']) > 53) ? substr($record['txt'],0,50).'...' : $record['txt']).'\''; break;
 				case 'SOA':	$b[] = $record['serial'].'='.$key.','.$record['rname'];	break;
 				case 'HINFO':	$b[] = 'cpu='.$record['cpu'].', os='.$record['os']; break;
 				default:
@@ -334,7 +347,8 @@ Answer Object
 				      $b[] = $key.'=['.implode(',',$record).']';
 				}
 			}
-			$a[] = $type.' ('.implode(';',$b).')';
+			//$a[] = $type.' ('.implode(';',$b).')';
+			$a[] = $type.' '.implode(';',$b);
 			unset($b);
 		    }
 		  }

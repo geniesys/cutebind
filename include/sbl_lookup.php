@@ -72,14 +72,33 @@ function sbl_lookup( &$q, &$a ) {	// Spam Block List (SBL) handler
 			$rejection_reason = $replycode;
 
 			if($replycode == 0) {
-				if($age = sbl_domain_age($q2, $a2)) {
-					//echo '$age = '.$age."\n";
-					if( $age < $settings['SBL']['min_age'] ) {
-						$replycode = 3;
-						$rejection_reason = 6;
-						dnsbl_blacklist_add($q->IP,'Insufficient domain age');
-					}
+
+				$age = sbl_domain_age($q2, $a2);
+
+				/*
+				sbl_domain_age() executes 'whois' for a domain in question, extracts domain creation date from the result.
+				Returns:
+					false	- unable to parse domain registration date or no such value found in the whois output;
+					0 (int)	- domain is not registered or there is no whois server for such TLD;
+					>1(int)	- difference in days between domain creation date and current date;
+				*/
+
+				//echo '$age = '.$age."\n";
+
+				if( $age === false ) {
+					if($settings['DEBUG']) echo "[DEBUG] sbl_lookup() - Unable to parse domain registration date or no such value found in the whois output\n";
+				} elseif( $age === 0 ) {
+					if($settings['DEBUG']) echo "[DEBUG] sbl_lookup() - Domain is not registered or there is no whois server for such TLD\n";
+					$replycode = 3;
+					$rejection_reason = 7;
+					dnsbl_blacklist_add($q->IP,'Domain is not registered or no whois server for such TLD');
+				} elseif( $age < $settings['SBL']['min_age'] ) {
+					if($settings['DEBUG']) echo "[DEBUG] sbl_lookup() - Insufficient domain age: $age < $settings[SBL][min_age]\n";
+					$replycode = 3;
+					$rejection_reason = 6;
+					dnsbl_blacklist_add($q->IP,'Insufficient domain age');
 				}
+
 			} elseif($replycode == 3) {
 				dnsbl_blacklist_add($q->IP,'Anonymous IP');
 			}
@@ -122,7 +141,7 @@ function sbl_lookup( &$q, &$a ) {	// Spam Block List (SBL) handler
 
 				if( dnsbl_hostname_contains_ip($q2,$a2) ) {
 					$a->src = '$';		// To be verified
-					$rejection_reason = 7;
+					$rejection_reason = 8;
 				} else {
 					$a->src = '@';		// Allowed
 				}
@@ -147,13 +166,13 @@ function sbl_lookup( &$q, &$a ) {	// Spam Block List (SBL) handler
 	} else {
 		// No, $q->host does not contain an IP address. Do SURBL processing.
 		//echo '$settings[SBL][hostmatch] = '.$settings['SBL']['hostmatch']."\n";
-		$url = substr($q->l_host,0,strpos($q->l_host,$settings['SBL']['hostmatch']));	// otherdomain.tld.sbl.mydomain.tld. -> otherdomain.tld
-		switch( surbl_check($url) ) {
+		$domain = substr($q->l_host,0,strpos($q->l_host,$settings['SBL']['hostmatch']));	// otherdomain.tld.sbl.mydomain.tld. -> otherdomain.tld
+		switch( surbl_check($domain) ) {
 		case  0 :	// neutural (not data)
 			$replycode = 3;
 			break;
 		case  1 :	// blacklisted
-			$txt = $settings['SBL']['txt'] . $REJECT_REASON_ENUM[8];
+			$txt = $settings['SBL']['txt'] . $REJECT_REASON_ENUM[9];
 			$a->set_type('A');
 			$a->AN['A']   = Array($settings['SBL']['return_ip'] => Array ('ttl' => $settings['DNS']['TTL']));	// add A [127.0.0.x] record to ANswer collection
 			$a->AD['TXT'] = Array(                            0 => Array ('txt' => $txt));				// add TXT record to ADditional collection
@@ -162,18 +181,18 @@ function sbl_lookup( &$q, &$a ) {	// Spam Block List (SBL) handler
 		 	break;
 		case -1 :	// whitelisted
 			$a->set_type('A');
-			$a->AN['A']   = Array('1.1.1.1'   => Array ('ttl' => $settings['DNS']['TTL']));		// add A record to ANswer collection
+			$a->AN['A']   = Array('1.1.1.2'   => Array ('ttl' => $settings['DNS']['TTL']));		// add A record to ANswer collection
 			$a->AN['PTR'] = Array('whitelist' => Array ('ttl' => $settings['DNS']['TTL']));		// add PTR record to ANswer collection
 			$a->src       = '@';		// Allowed
 			$replycode    = 0;		// set REPLYCODE to no-error
 			break;
 		}
-		//$url = implode('.',array_reverse(explode('.',$url)));				// tld.otherdomain -> otherdomain.tld
-		//if( $replycode = surbl_check($url) ) {
+		//$domain = implode('.',array_reverse(explode('.',$domain)));				// tld.otherdomain -> otherdomain.tld
+		//if( $replycode = surbl_check($domain) ) {
 			//switch($replycode) {}
-		//} elseif( surbl_whitelist($url) ) {
+		//} elseif( surbl_whitelist($domain) ) {
 		//	$replycode = 0;			// Allow - domain is whitelisted. No further checks needed.
-		//} elseif( surbl_blacklist($url) ) {
+		//} elseif( surbl_blacklist($domain) ) {
 		//	$replycode = 3;			// Block - domain is blacklisted. No further checks needed.
 		//	$rejection_reason = 1;
 		//}
@@ -361,8 +380,11 @@ function dnsbl_test_ports(&$q) {
 
 function sbl_domain_age( &$q2, &$a2 ) {
 /*
-	Executes 'whois' for a domain in question, extracts domain creation date from the
-	result, returns difference in days between domain creation date and current date.
+	Executes 'whois' for a domain in question, extracts domain creation date from the result.
+	Returns:
+		false	- unable to parse domain registration date or no such value found in the whois output;
+		0 (int)	- domain is not registered or there is no whois server for such TLD;
+		>1(int)	- difference in days between domain creation date and current date;
 */
 	global $settings, $dns_cache, $db;
 
@@ -410,7 +432,16 @@ function sbl_domain_age( &$q2, &$a2 ) {
 		case (stripos($line,'registered:')    !== false):
 			$d = $line;
 			break;
+		case (stripos($line,'activated on:')  !== false):
+			$d = $line;
+			break;
+		case (stripos($line,'Record Created') !== false):
+			$d = $line;
+			break;
 		case (stripos($line,'no whois server')!== false):
+			return 0;
+			break;
+		case (stripos($line,'No match for')   !== false):
 			return 0;
 			break;
 		}
@@ -423,6 +454,7 @@ function sbl_domain_age( &$q2, &$a2 ) {
 	}
 
 	if(!isset($d)) {
+		echo "sbl_domain_age() - Unable to find line that indicates domain registration date. Below is result of whois lookup.\n";
 		print_r($output);
 		return false;
 	}
@@ -439,6 +471,7 @@ function sbl_domain_age( &$q2, &$a2 ) {
 			'/.*(\d{4}[-\.]\d{2}[-\.]\d{2}\s\d{2}:\d{2}:\d{2}).*/'	=> '$1',
 			'/.*(\d{4})\/(\d{2})\/(\d{2}).*/'			=> '$1-$2-$3',
 			'/.*(\w{3})\s(\d{1,2})\s(\d{2}:\d{2}:\d{2})\s(\d{4})/'	=> '$1 $2 $4 $3',
+			'/.*(\d{2})[-\.](\w{3})[-\.](\d{4}).*/'                 => '$3-$2-$1',
 			'/before Aug-1996/'                                     => '1996-07-01',	// occurs with .co.uk domains
 			'/before 2001/'						=> '2000-01-01',
 		);
@@ -473,7 +506,7 @@ function sbl_domain_age( &$q2, &$a2 ) {
 
 		return $interval->days;
 	} else {
-		echo "sbl_domain_age() - can't convert '$line' to a date. You may want to add aditional pattern to reformat this value into a date string.\n";
+		log_error("sbl_domain_age() - can't convert '$line' to a date. You may want to add aditional pattern to reformat this value into a date string.");
 		return false;
 	}
 }
@@ -506,11 +539,12 @@ function sbl_domain_age_get( $str_domain ) {
 
 
 /* ----- SURBL Functions ----- */
-function surbl_check($url) {
+
+function surbl_check($domain) {
 	global $settings, $db;
 
 	if( $db = connect_db() ) {
-		$sql = "CALL `surbl_check`('$url');";
+		$sql = "CALL `surbl_check`('$domain');";
 		//echo $sql."\n";
 		if($result = $db->query($sql)) {
 		    //printf("$sql returned %d rows.\n", mysqli_num_rows($result));
@@ -525,14 +559,14 @@ function surbl_check($url) {
 	return false;
 }
 
-function surbl_whitelist( $url ) {
+function surbl_whitelist( $domain ) {
 	/*
-	  This rule checks surbl_whitelist to see if given $url is whitelisted.
+	  This rule checks surbl_whitelist to see if given $domain is whitelisted.
 	*/
 	global $settings, $db;
 
 	if( $db = connect_db() ) {
-		$sql = "SELECT * FROM surbl_whitelist WHERE `url`='$url';";
+		$sql = "SELECT * FROM surbl_whitelist WHERE `domain`='$domain';";
 		//echo $sql."\n";
 		if($result = $db->query($sql)) {
 		    //printf("$sql returned %d rows.\n", mysqli_num_rows($result));
@@ -545,14 +579,14 @@ function surbl_whitelist( $url ) {
 	return false;
 }
 
-function surbl_blacklist( $url ) {
+function surbl_blacklist( $domain ) {
 	/*
-	  This rule checks surbl_blacklist table to see if given $url is blacklisted.
+	  This rule checks surbl_blacklist table to see if given $domain is blacklisted.
 	*/
 	global $settings, $db;
 
 	if( $db = connect_db() ) {
-		$sql = "SELECT * FROM surbl_blacklist WHERE `url`='$url';";
+		$sql = "SELECT * FROM surbl_blacklist WHERE `domain`='$domain';";
 		//echo $sql."\n";
 		if($result = $db->query($sql)) {
 		    //printf("$sql returned %d rows.\n", mysqli_num_rows($result));

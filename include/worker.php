@@ -80,6 +80,7 @@ function run_worker($wtype = '') {
 	global $QTYPES;
 	global $QCLASSES;
 	global $dns_cache;
+
 	$q_counter = 0;
 	$hash_table_offset = (int) $settings['maxDNSworkers'];		// 2nd part of dns-status-map starts at offset equal to maxDNSworkers (1st part is 1 byte per worker)
 	$hash_table_length = (int) $settings['maxDNSworkers']*16;	// The length of this 2nd part equal to 16*maxDNSworkers (16 bytes per worker)
@@ -108,20 +109,20 @@ function run_worker($wtype = '') {
 	pcntl_signal(SIGHUP ,'worker_sighandler');
 	pcntl_signal(SIGUSR1,'worker_sighandler');
 	pcntl_signal(SIGUSR2,'worker_sighandler');
-/*
+
 	// Init database connection (each worker uses its own connection)
-	if(isset($settings['mysql']['host'])) {
-	    echo '[INIT] Connecting to MySQL server '.$settings['mysql']['host']." ... ";
+//	if(isset($settings['mysql']['host'])) {
+//	    echo str_pad('[INIT] Connecting to MySQL server '.$settings['mysql']['host'],55,'.');
 	    $db = connect_db();
-	    if($db) {
-		echo "OK\n";
-	    } else {
-		echo "FAILED\n";
-		echo mysqli_connect_error()."\n";
-		echo "All functions that require database access will not be available.\n";
-	    }
-	}
-*/
+//	    if($db) {
+//		echo "OK\n";
+//	    } else {
+//		echo "FAILED\n";
+//		echo mysqli_connect_error()."\n";
+//		echo "All functions that require database access will not be available.\n";
+//	    }
+//	}
+
     while (TRUE)
     {
 	//pcntl_signal_dispatch();
@@ -130,7 +131,7 @@ function run_worker($wtype = '') {
 		shmop_delete($ipc['dns-status-map']);	// delete only. do not close - other workers may still be accessing it. Master will take care of it.
 		shmop_delete($ipc['dns-q-counter']);
 		shmop_delete($ipc['dns-cache']);
-		if($db) mysqli_close($db);
+		if($db) @mysqli_close($db);
 		exit(0);
 	}
 
@@ -169,7 +170,7 @@ function run_worker($wtype = '') {
 	$qinfo['id']        = _get_word($data);
 	$bitmap             = getbitmap(_get_byte($data));
 	$qinfo['QR']        = $bitmap[0];
-	$qinfo['OPCODE']    = bindec(substr($bitmap,1,4));	// $bitmap parameter was missing?
+	$qinfo['OPCODE']    = bindec(substr($bitmap,1,4));
 	$qinfo['AA']        = $bitmap[5];
 	$qinfo['TC']        = $bitmap[6];
 	$qinfo['RD']        = $bitmap[7];
@@ -182,10 +183,10 @@ function run_worker($wtype = '') {
 	$qinfo['AUCOUNT']   = _get_word($data);
 	$qinfo['ADCOUNT']   = _get_word($data);
 	$qinfo['REPLYCODE'] = 0;
-	$qinfo['AA']        = 1;				// why AA gets overwritten here?
+	$qinfo['AA']        = 1;
 
 	$e = explode(':',$peer);
-	$qinfo['peer_ip']   = $e[0];				// used in GeoIP resolver()
+	$qinfo['peer_ip']   = $e[0];
 	$qinfo['peer_port'] = $e[1];
 
 	$answer             = '';
@@ -239,16 +240,18 @@ function run_worker($wtype = '') {
 		if( $settings['DEBUG'] ) {
 			switch($qinfo['REPLYCODE']) {
 			case 0:
-			//	switch($a->src) {
-			//	case 'T': echo "[DEBUG] Resolved using internal static table.\n";	break;
-			//	case 'C': echo "[DEBUG] Resolved using cache.\n";			break;
-			//	case 'R': echo "[DEBUG] Resolved using resolver().\n";			break;
-			//	case 'L': echo "[DEBUG] Resolved using lookup.\n";			break;
-			//	case '@': echo "[DEBUG] SPAM Check - PASS.\n";				break;
-			//	case '#': echo "[DEBUG] SPAM Check - BLOCKED.\n";			break;
-			//	case '-': echo "[ERROR] REPLYCODE=0 but SRC flag says nothing found\n";	break;
-			//	case '?': echo "[ERROR] REPLYCODE=0 but SRC flag wasn't set.\n";	break;
-			//	}
+			/*
+				switch($a->src) {
+				case 'T': echo "[DEBUG] Resolved using internal static table.\n";	break;
+				case 'C': echo "[DEBUG] Resolved using cache.\n";			break;
+				case 'R': echo "[DEBUG] Resolved using resolver().\n";			break;
+				case 'L': echo "[DEBUG] Resolved using lookup.\n";			break;
+				case '@': echo "[DEBUG] SPAM Check - PASS.\n";				break;
+				case '#': echo "[DEBUG] SPAM Check - BLOCKED.\n";			break;
+				case '-': echo "[ERROR] REPLYCODE=0 but SRC flag says nothing found\n";	break;
+				case '?': echo "[ERROR] REPLYCODE=0 but SRC flag wasn't set.\n";	break;
+				}
+			*/
 				break;
 			case 1: echo "[DEBUG] Unable to resolve - Query packet error.\n";	break;
 			case 2: echo "[DEBUG] Unable to resolve - Internal server error.\n";	break;
@@ -341,18 +344,37 @@ function run_worker($wtype = '') {
 			//	$lp = str_pad($q->QTYPE,3).' ('.$q->host.') -> ';
 			//}
 
-			$lp = str_pad($q->QTYPE,3).' ('. ( (isset($a->REVERSE) && $a->REVERSE) ? $q->IP : $q->host ) .') -> ';
+			//$lp = str_pad($q->QTYPE,5,' ',STR_PAD_LEFT).' ('. ( (isset($a->REVERSE) && $a->REVERSE) ? $q->IP : $q->host ) .') -> ';
+			$lp = str_pad($q->QTYPE,5,' ',STR_PAD_LEFT).' '. ( (isset($a->REVERSE) && $a->REVERSE) ? $q->IP : $q->host ) .' -> ';
+
 
 			switch($qinfo['REPLYCODE']) {
 			case 0: $lp .= $a->get_destination();	break;
 			case 1: $lp .= 'Query packet error';	break;
 			case 2: $lp .= 'INTERNAL ERROR';	break;
-			case 3: $lp .= (($a->REVERSE) ? 'Host':'IP').' not found';	break;
+			case 3:
+				//$lp .= (($a->REVERSE) ? 'Host':'IP').' not found';	break;
+
+				$lp .= 'NOT FOUND';	break;
+/*
+				switch($q->QTYPE) {
+				case 'PTR' : $lp .= 'Host not found';	break;
+				case 'A'   : $lp .= 'IP not found'  ;	break;
+				case 'AAAA': $lp .= 'IPv6 not found';	break;
+				default    : $lp .= 'Not found';	break;
+				}
+				break;
+*/
 			case 4: $lp .= $q->QTYPE.' not found';	break;
 			case 5: $lp .= 'REFUSED'; break;
 			}
 			//log_access($lp = $zinfo[0].' ['.$peer.'] '.$a->src.' '.str_pad(round((microtime(true)-$time)*1000,1),7,' ',STR_PAD_LEFT).' ms (OPCODE='.$qinfo['OPCODE'].',RCODE='.$qinfo['REPLYCODE'].',CLASS='.$q->QCLASS.') '.$lp);
-			log_access($lp = $zinfo[0].' ['.$peer.'] '.$a->src.' '.str_pad(round((microtime(true)-$time)*1000,1),7,' ',STR_PAD_LEFT).' ms '.$lp);
+			log_access(	str_pad($zinfo[0], 5,' ',STR_PAD_LEFT ).' '.
+					str_pad($peer    ,20,' ',STR_PAD_RIGHT).' '.
+					$a->src.' '.
+					str_pad(round((microtime(true)-$time)*1000,1),7,' ',STR_PAD_LEFT).' ms '.
+					$lp
+			);
 		}
 	    }		// for ($qn = 0; $qn < $qinfo['QDCOUNT']; ++$qn)
 	}	// if ($qinfo['QR'] == '0')

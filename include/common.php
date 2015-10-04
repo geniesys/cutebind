@@ -12,7 +12,6 @@ function connect_db() {
 		@ $db = mysqli_connect('p:'.$p['host'], $p['user'], $p['pass'], $p['base'], ($p['port']=='') ? NULL : $p['port']);	// persistent connection (closed when program ends)
 		return $db;
 	}
-
 	return NULL;
 }
 
@@ -24,7 +23,8 @@ function log_access($log,$reopen = FALSE) {
 		$p = fopen(parse_storagepath($settings['accesslog']),'a');
 	}
 	if ($log !== '') {
-		$log = '['.date($settings['logging']['date_format']).'] '.$log;
+		//$log = '['.date($settings['logging']['date_format']).'] '.$log;
+		$log = date($settings['logging']['date_format']).' '.$log;
 		fwrite($p,$log."\n");
 		echo $log."\n";
 	}
@@ -38,7 +38,8 @@ function log_error($log,$reopen = FALSE) {
 		$p = fopen(parse_storagepath($settings['errorlog']),'a');
 	}
 	if ($log !== '') {
-		$log = '['.date($settings['logging']['date_format']).'] '.$log;
+		//$log = '['.date($settings['logging']['date_format']).'] '.$log;
+		$log = date($settings['logging']['date_format']).' '.$log;
 		fwrite($p,$log."\n");
 		echo $log."\n";
 	}

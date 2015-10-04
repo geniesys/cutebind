@@ -57,9 +57,9 @@ $REJECT_REASON_ENUM = array(
 	4   => '#4',	// (not used)
 	5   => '#5',	// Mailformed IP
 	6   => '#6',	// Minimun Domain Age
-	7   => '#7',	// hostname contains host's IP address (ISP's usually assign generic names containing IP address which could indicate a possible dinamic IP)
-	8   => '#8',	// Email contains URL(s) to blacklisted site
-	9   => '#9',	// (not used)
+	7   => '#7',	// Domain is not registered or no whois server for such TLD
+	8   => '#8',	// hostname contains host's IP address (ISP's usually assign generic names containing IP address which could indicate a possible dinamic IP)
+	9   => '#9',	// Email contains URL(s) to blacklisted site(s)
 );
 
 function resolver(&$q,&$a,$init = FALSE) {

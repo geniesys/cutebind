@@ -36,18 +36,18 @@ CREATE TABLE IF NOT EXISTS `domains` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='Provides long-term storage for domain-related information.';
 
 CREATE TABLE IF NOT EXISTS `surbl_blacklist` (
-  `url` varchar(45) NOT NULL,
+  `domain` varchar(45) NOT NULL,
   `date_added` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `date_expires` datetime DEFAULT NULL,
   `notes` varchar(80) DEFAULT NULL,
-  PRIMARY KEY (`url`)
+  PRIMARY KEY (`domain`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 CREATE TABLE IF NOT EXISTS `surbl_whitelist` (
-  `url` varchar(45) NOT NULL,
+  `domain` varchar(45) NOT NULL,
   `date_added` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `notes` varchar(80) DEFAULT NULL,
-  PRIMARY KEY (`url`)
+  PRIMARY KEY (`domain`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 CREATE TABLE IF NOT EXISTS `surbl_kb` (
@@ -171,6 +171,26 @@ CREATE DEFINER = `root`@`localhost`
 END$$
 DELIMITER ;
 
+CREATE DEFINER=`root`@`localhost` PROCEDURE `surbl_check`( IN p_domain VARCHAR(50) )
+BEGIN
+	DECLARE retValue smallint;
+ 
+	INSERT INTO `surbl_kb` (`domain`) VALUES (p_domain);
+
+	IF EXISTS( SELECT * FROM surbl_whitelist WHERE `domain` = p_domain ) THEN
+		SET retValue = -1;
+        #SET retValue = 'Whitelisted';
+	ELSEIF EXISTS( SELECT * FROM surbl_blacklist WHERE `domain` = p_domain ) THEN
+    	SET retValue = 1;
+        #SET retValue = 'Blacklisted';
+	ELSE
+		SET retValue = 0;
+		#SET retValue = 'Not Listed';
+	END IF;
+
+	SELECT retValue;
+END$$
+DELIMITER ;
 
 # Create the user if it doesn't exist and grant priviledges
 GRANT SELECT,INSERT,UPDATE,DELETE,EXECUTE,SHOW VIEW,CREATE TEMPORARY TABLES,LOCK TABLES ON `cuteresolve`.* to 'cutebind'@'%' identified by 'password';
