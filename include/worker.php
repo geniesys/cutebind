@@ -6,7 +6,7 @@ require_once 'fwd_lookup.php';		// Forward lookup resolver.
 require_once 'rev_lookup.php';		// Reverse lookup resolver.
 require_once 'sbl_lookup.php';		// Spam Block List (SBL) resolver.
 
-require_once COREBIND_ROOT.'static_resolution_table.php';
+require_once APP_ROOT.'static_resolution_table.php';
 
 $QTYPES = array(
 	  1 => 'A'	,   2 => 'NS'	,   3 => 'MD'		,   4 => 'MF'	,   5 => 'CNAME',
@@ -41,30 +41,31 @@ function worker_sighandler($signo) {
 	global $dns_cache;
 
 	static $signals = array(
-		SIGTERM => 'SIGTERM',
-		SIGABRT => 'SIGABRT',
-		SIGINT  => 'SIGINT',			// catches Ctrl+C
-		SIGKILL => 'SIGKILL',
-		SIGUSR1 => 'SIGUSR1',
-		SIGUSR2 => 'SIGUSR2 (Re-open logs)',
-		SIGHUP  => 'SIGHUP (Debugger ON/OFF)'	// (Ping-pong)
-		);
+		SIGHUP  => 'SIGHUP (1)  Debugger ON/OFF',	// (Ping-pong)
+		SIGINT  => 'SIGINT (2)',			// catches Ctrl+C
+		SIGQUIT => 'SIGQUIT (3)',
+		SIGABRT => 'SIGABRT (6)',
+		SIGKILL => 'SIGKILL (9)',
+		SIGUSR1 => 'SIGUSR1 (10) Fullstatus',
+		SIGUSR2 => 'SIGUSR2 (12) Reopen/rotate logs',
+		SIGTERM => 'SIGTERM (15)'
+	);
 
 	if($settings['DEBUG']) echo "Worker (pid:".getmypid().") caught signal $signals[$signo].\n";
 
 	switch($signo) {
+	case SIGHUP:			// Caught status-check
+		$settings['DEBUG']  = !$settings['DEBUG'];
+		$dns_cache['DEBUG'] = !$dns_cache['DEBUG'];
+		break;
 	case SIGUSR1:			// Caught fullstatus-report
 		break;
 	case SIGUSR2:			// Caught reopen logs
 		log_access('',TRUE);
 		log_error('',TRUE);
 		break;
-	case SIGHUP:			// Caught status-check
-		$settings['DEBUG']  = !$settings['DEBUG'];
-		$dns_cache['DEBUG'] = !$dns_cache['DEBUG'];
-		break;
 	default:
-	    if($signo == SIGTERM || $signo == SIGABRT || $signo = SIGINT) {
+	    if( $signo = SIGINT || $signo == SIGQUIT || $signo == SIGABRT || $signo == SIGKILL || $signo == SIGTERM ) {
 		if(! defined('TERMINATED')) define('TERMINATED',TRUE);
 	    }
 	}
@@ -226,7 +227,7 @@ function run_worker($wtype = '') {
 		}
 
 		// Load/reload cache from shared memory before each new resolution
-		if(!dns_cache_get()) echo "[ERROR] Unable to load/reload cache from shared memory.\n";
+		if(!dns_cache_get()) log_error("[ERROR] Failed to reload dns cache from shared memory");
 
 		// Call appropriate lookup method.
 		if( strpos($q->l_host,$settings['SBL']['hostmatch']) ) {		// Trigger SBL processing only when the hostname contains string specified in $settings['SBL']['hostmatch']. See README.txt
@@ -332,7 +333,7 @@ function run_worker($wtype = '') {
 			} // count($a->AN) > 0
 		}
 
-		if(! dns_cache_put()) echo "[ERROR] Unable to write dns_cache into shared memory\n";		// after each query write $dns_cache back into shared memory
+		if(! dns_cache_put()) log_error("[ERROR] Failed to update dns_cache shared memory");		// after each query write $dns_cache back into shared memory
 
 		shmop_write($ipc['dns-status-map'],str_repeat("\x00",16),($hash_table_offset+$zinfo[2]*16));	// Tell other workers that I have finished resolving (zerro-out memory at corresponding offset).
 

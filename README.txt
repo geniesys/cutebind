@@ -6,7 +6,7 @@ Second generation Powerful scriptable DNS-server. LGPL.
 All key features of original CuteBind 0.1b are preserved:
  - Full resolving control (scripting).
  - Advanced requests logging (optional).
- - Unbelievable performance (12000 requests per SECOND is easy-peasy).
+ - Great performance (12000 requests per SECOND is easy-peasy).
  - Dynamic multi-threading (internal load balancing).
  - You can use it with MySQL or other databases.
  - Built-in Round-robin load balancing.
@@ -29,46 +29,114 @@ New features added:
    expiration time based on server load to achieve better cache utilization.
  - Code is reorganized for better manageability.
 
+--------------------------------------------------------------------------------------
 					INSTALLATION
+--------------------------------------------------------------------------------------
 
-Install PHP 5 last stable (currently 5.2.6) with the following keys:
-	--enable-pcntl --enable-sockets --enable-shmop
+Install PHP 5 standard package (latest stable).
 
-	- posix library is also required or you get error "PHP Fatal error: Call to
-	  undefined function posix_kill() in /usr/local/cutebind/cutebind on line ###"
+	Depending uppon version of your Linux, PHP may come in different packaging.
+	This software (CuteBind) depends on the following libraries which in some
+	distributions are included by default and considered optional in others.
 
-	  type php -m to see which libraries are installed.
+	pcntl, sockets, shmop, posix, mysql
+
+
+	If your installer allows arguments, then specify the following parameters
+	to the installer:
+
+	--enable-pcntl --enable-sockets --enable-shmop --enable-posix
+
+	Otherwise, procede without additional parameters and then add necessary modules
+	after initial installation.
+
+	To install standard PHP distribution:
+
+	Ubuntu:		sudo apt-get install php5
+
+	openSUSE:	[sudo] zypper install php5
+
+
+	Type php -m to see which libraries are included in standard installation.
+
+	Add missing modules:
+
+	Ubuntu 14.04.x LTS + PHP5:
+		sudo apt-get install php5-mysql
+
+	Ubuntu 16.04.x LTS + PHP7:
+		sudo apt-get install php7.0-mysql
+		sudo apt-get install php7.0-cli		(optional)
+
+		* Yes, it works on PHP 7.0
 
 	openSUSE:
-	$ zypper install php5-pcntl
-	$ zypper install php5-sockets
-	$ zypper install php5-shmop
-	$ zypper install php5-posix
+		[sudo] zypper install php5-pcntl
+		[sudo] zypper install php5-sockets
+		[sudo] zypper install php5-shmop
+		[sudo] zypper install php5-posix
 
+		* Confirmed to work on openSUSE 13.1 and Leap 42.2 with PHP 5.2.6 - 5.5.14
+
+
+
+Check if your Linux OS has 'whois' utility. If not, install it from online
+software repository for your OS.
+
+	Ubuntu  :	sudo apt-get install whois 
+	openSUSE:	[sudo] zypper install whois
 
 Download cutebind source
+
 	<GitHub instructions needed> 
 
 	Suggested destination folder is "/usr/local/cutebind".
-	Make symbolic link on your Desktop to this folder if you preffer.
+	If you are not 'root', you may not be able to save directly into this location.
+	Workaround is to save the application files in a location to which you do have
+	writeable access and then 'sudo mv <source_path>/cutebind /usr/local/' .
+	
+	CuteBind's location is not very important, but what helps to run it as a system
+	service is a couple of symbolic links in /usr/local/bin and /usr/bin
 
-Modify header of cutebind's executable if necessary.
-	PHP installation from openSUSE repository places PHP into /usr/bin/php.
-	Other brands of Linux are likely to place PHP in different location.
+	$ cd <CuteBind's_folder>
+	$ CWD=$(pwd);
+	$ ln -sf $CWD/cutebind.sh /usr/local/bin/cutebind;
+	$ ln -sf $CWD/cutebind.sh /usr/bin/cutebind;
+	$ ln -sf $CWD $HOME/Desktop/cutebind;			# Optional link on your Desktop
+
+	install.bash script assists you with this process including creation of symlinks
+	and database initialization. Don't run it yet. We have a couple of aditional steps
+	to complete before we get there.
+
+
+If necessary, modify "shebang" header of cutebind's executable.
+	PHP installation on Ubuntu and openSUSE repository places PHP into /usr/bin/php.
+	Other brands of Linux may place PHP in different location.
 	Type "which php" to verify where it is.
 
-	Modify Line 1 of "cutebind" (a PHP file with executable attributes) and enter
-	correct path. For example:
-	change	#!/usr/bin/php -q
-	to	#!/opt/php -q
-
-
-Now you can type: "bash ./install.bash".
-	install.bash creates symlinks (/usr/bin/cutebind and /usr/local/bin/cutebind).
+	If it is not '/usr/bin/php' then modify Line 1 of cutebind.sh
+	and enter correct path. For example, change '#!/usr/bin/php -q' to '#!/opt/php -q'
 
 Modify config.php according to you environment.
-	Change 'listen' IP to host IP address.
-	Check/modify other parameters as necessary.
+	Change 'listen' IP to host's IP address.
+	Change 'host' IP in $settings['mysql'] section.
+	Check/modify other parameters as necessary. Read comments next to each parameter.
+
+	* If you're using AWS EC2 instance, the 'listen' IP is your 'Private IP', but
+	you must refer to your DNS server using 'Public IP' or 'Public DNS' name. Both IP
+	addresses are shown in the 'Description' tab (details frame) for that EC2 instance.
+
+
+Now you can run ' ./install.bash' or '. ./install.bash'
+
+
+--------------------------------------------------------------------------------------
+					TEST
+--------------------------------------------------------------------------------------
+
+
+
+--------------------------------------------------------------------------------------
 
 
 DNS Cache

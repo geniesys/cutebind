@@ -1,5 +1,5 @@
 <?php
-function fwd_lookup( &$q, &$a ) {	// Forward-lookup a record for a host or domain (name-to-addr translation). Returns: int Error Code. Returns corresponding records in $a->RDATA array.
+function fwd_lookup( &$q, &$a ) {	// Forward-lookup (name-to-addr translation) host or domain. Populates corresponding records in $a->AN array and returns int Error Code.
 /*
 	Search for a record in various places (order is important).
 	$q object contains all needed input information and output propeties that we need to update in response.
@@ -46,10 +46,30 @@ function fwd_lookup( &$q, &$a ) {	// Forward-lookup a record for a host or domai
 			$a->HAS_TARGETS = true;						// This is CNAME record. Will have to do recursive lookups.
 			$a->src = 'C';
 		} elseif( resolver($q,$a) ) {						// try resolver()
-			//foreach( $q->IP as $ip) {
-			//    dns_cache_add(array('host'=>$q->l_host,'type'=>$q->QTYPE,'ip'=>$q->IP,'ttl'=>$settings['DNS']['TTL']));	// cache it to reduce number of db queries
-			//}
-			//$result = $cache[$q->l_host][$q->QTYPE];
+/*
+			$record = ['host'=>$q->l_host,'class'=>$q->QCLASS];
+			foreach( $a->AN as $record['type'] => $data) {
+			    foreach($data as $k => $v) {
+				switch($record['type']) {
+				case 'A'    : $record['ip']     = $k;	break;
+				case 'AAAA' : $record['ipv6']   = $k;	break;
+				case 'CNAME': $record['target'] = $k;	break;
+				case 'NS'   : $record['target'] = $k;	break;
+				case 'SOA'  : $record['mname']  = $k;	break;
+				default:
+					echo '[WARN] fwd_lookup():69 - Need handler for '.$record['type']." type records.\n";
+				}
+			    }
+
+			    $record['ttl'] = (isset($v['ttl'])) ? $v['ttl'] : $settings['DNS']['TTL'];
+
+			    dns_cache_add($record);					// add to cache to reduce number of db queries
+
+			}
+*/
+			dns_cache_add_raw(array( $q->l_host => $a->AN ));
+
+			$result = $cache[$q->l_host];
 			$a->src = 'R';
 		}
 	}
@@ -126,10 +146,10 @@ function fwd_lookup( &$q, &$a ) {	// Forward-lookup a record for a host or domai
 	if(isset($result['A']) && count($result['A']) > 1) {		// Roundrobin is applicable only to 'A' records (IP addresses)
 		$doRR = 0;						// Assume 0
 		switch($a->src) {					// Check bit that corresponds to our source
-		case 'T': $doRR = $settings['DNS']['RR'] & 1; break;	// Records were obtained from inline hash-table
 		case 'C': $doRR = $settings['DNS']['RR'] & 2; break;	// Records were obtained from cache
-		case 'R': $doRR = $settings['DNS']['RR'] & 4; break;	// from Resolver/DB
 		case 'L': $doRR = $settings['DNS']['RR'] & 8; break;	// via ext. lookup
+		case 'T': $doRR = $settings['DNS']['RR'] & 1; break;	// Records were obtained from inline hash-table
+		case 'R': $doRR = $settings['DNS']['RR'] & 4; break;	// from Resolver/DB
 		}
 		if($doRR) {						// if $doRR not 0
 			$keys = array_keys($result['A']);		// get list of keys (IP's)

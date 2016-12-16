@@ -1,16 +1,30 @@
 #!/bin/bash
+
+if [[ $(id -u) -ne 0 ]] ; then
+   echo "Please run as root";
+   exit 1;
+fi
+
 CWD=$(pwd);
-chmod +x $CWD/cutebind
-rm /usr/local/bin/cutebind > /dev/null;
-ln -s $CWD/cutebind /usr/local/bin/cutebind
-rm /usr/bin/cutebind  > /dev/null;
-ln -s $CWD/cutebind /usr/bin/cutebind
+
+chmod +x $CWD/cutebind;
+
+#rm /usr/local/bin/cutebind 2> /dev/null;
+ln -sf $CWD/cutebind /usr/local/bin/cutebind;
+
+#rm /usr/bin/cutebind  2> /dev/null;
+ln -sf $CWD/cutebind /usr/bin/cutebind;
+
+#rm $HOME/Desktop/cutebind 2> /dev/null;
+ln -sf $CWD/cutebind $HOME/Desktop/cutebind;
+
+
 mkdir logs 2> /dev/null;
 mkdir ipc  2> /dev/null;
 
 if [ -f /etc/init.d/mysql* ]; then
     echo '';
-    echo 'This script can initialize `cuteresolve` database and create a user account.';
+    echo 'This script can initialize `cuteresolve` database schema and create a user account.';
     echo 'Default user name and password are specified in cuteresolve.sql at the end of file.';
     echo 'If you wish to change it, edit cuteresolve.sql and config.php before pressing "Y".';
     echo 'If you already have `cuteresolve` database, the existing tables will not be touched,';
@@ -44,7 +58,9 @@ if [ "$key" = 'y' ] || [ "$key" = 'Y' ]; then
     echo 'Executing cutebind in console mode. Ctrl+C to exit ...
 
 ';
-cutebind master;
+
+    cutebind master;
+
 else
     echo '$ ./cutebind           - deamon mode';
     echo '$ ./cutebind master    - console mode';

@@ -42,7 +42,7 @@ $table = Array(
 		'SOA'=> Array(
 			'ns1.example.tld'   => Array('ttl'        => 10800,
 						     'rname'      => 'admin.example.tld',
-						     'serial'     => 2014072800,	// must not excede 10 digits
+						     'serial'     => date('YmdH'),	// must not excede 10 digits
 						     'refresh'    => 900,
 						     'retry' 	  => 600,
 						     'expire'	  => 3600,
@@ -83,7 +83,7 @@ $table = Array(
 		),
 );
 
-// Creating Authority Zone for sbl server.
+// Authority Zone for sbl server.
 
 if( $settings['SBL'] ) {
 
@@ -109,8 +109,8 @@ if( $settings['SBL'] ) {
 					       )
 			),
 */		'SOA'=> Array(
-			'sbl.example.tld'  => Array('ttl'		=> 10800,
-						     'rname'		=> 'admin.example.tld',
+			'sbl.geniesys.net'  => Array('ttl'		=> 10800,
+						     'rname'		=> 'admin.geniesys.net',
 						     'serial'		=> date('YmdH'),	// must not excede 10 digits
 						     'refresh'		=> 600,
 						     'retry'		=> 600,
@@ -118,16 +118,22 @@ if( $settings['SBL'] ) {
 						     'minimum-ttl'	=> 300,
 						)
 			),
-
-		'sbl.example.tld.' => Array(
+/*
+		'NS' => Array(
+			'192.168.2.16' => Array('ttl' => 300)
+			),
+*/
+/*
+		'sbl.geniesys.net.' => Array(
 			'NS' => Array(
-				'192.168.1.16'	=> Array('ttl' => 300)
+				'192.168.2.16'	=> Array('ttl' => 300)
 			),
 
 			'A' => Array(
-				'192.168.1.16'	=> Array ('ttl' => 300)
+				'192.168.2.16'	=> Array ('ttl' => 300)
 				),
 			),
+*/
 		);
 
 }

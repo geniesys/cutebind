@@ -10,7 +10,7 @@ function rev_lookup( &$q, &$a ) {	// Reverse-lookup an IP address (addr-to-name 
 	global $cache;	$cache = &$dns_cache['table'];	// update reference to inline cache hash-table. Somehow it doesn't point to the $dns_cache['table'] (?)
 	global $table;
 
-	$result;					// local var used to keep result of successful lookup before we put it back into $a->R_DOMAIN in the 2nd half of this function.
+	$result;					// local var used to keep result of a successful lookup before we put it back into $a->AN.
 /*
 	if ($q->QTYPE == 'PTR') {
 		$q->QTYPE_INT = 0x01;
@@ -133,31 +133,12 @@ function rev_lookup( &$q, &$a ) {	// Reverse-lookup an IP address (addr-to-name 
 
 	if(! isset($result)) {
 		echo "[ERROR] rev_lookup() -\$result is not set. Something is wrong. Need to debug it.\n";
-		//$a->R_DOMAIN = null;
 		$a->AN = null;
 		return 2;						// 2 = Internal server error
 	}
 
 	$a->AN = $result;
 	//echo 'rev_lookup(): - $result = '; print_r($result);
-
-	//$a->R_DOMAIN = key($result);
-	//if(is_array($a->R_DOMAIN)) {
-	//    echo '$a->R_DOMAIN is an array. Why?'."\n";
-	//    print_r($q);
-	//}
-	//if (substr($a->R_DOMAIN,-1) != '.') $a->R_DOMAIN .= '.';
-
-	//$q->bin_host = _labels($a->R_DOMAIN);		// R_DOMAIN IS NO LONGER USED. DOING THIS WILL ERASE $bin_host 
-	//if (substr($q->bin_host,-1) != "\x00") {$q->bin_host .= "\x00";}
-
-	//if ($q->IP == '') return 3;					// Host/domain not found
-
-	//if (isset($a->REVERSE) && $a->REVERSE) {
-	//	$a->AN[] = $a->R_DOMAIN;
-	//} else {
-	//	$a->dest    = $q->IP;
-	//}
 
 	return 0;							// 0 = Successful
 }

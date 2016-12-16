@@ -86,7 +86,14 @@ class Question extends _base_QuestionAnswer {
 	public $peer_ip;		// Currently used in GeoIP resolver() only. May want to pass it there somehow else and remove from here (?)
 	public $peer_port;		// Currently used in GeoIP resolver() only. May want to pass it there somehow else and remove from here (?)
 
-	public function Question( &$data = null, $peer = null) {	// initialization function called automatically.
+	public function __construct( &$data = null, $peer = null) {	// PHP7+ initialization function called automatically.
+		// You can pass $data and $peer parameters to have this object initialize itself in one step.
+		// Otherwise call set_data($data) and set_peer($peer) separately right after creating your object.
+		if(! is_null($data) )	$this->set_data($data);
+		if(! is_null($peer) )	$this->set_peer($peer);		// used in GeoIP resolver() only
+	}
+
+	public function Question( &$data = null, $peer = null) {	// PHP7- initialization function called automatically.
 		// You can pass $data and $peer parameters to have this object initialize itself in one step.
 		// Otherwise call set_data($data) and set_peer($peer) separately right after creating your object.
 		if(! is_null($data) )	$this->set_data($data);
@@ -123,13 +130,11 @@ class Answer extends _base_QuestionAnswer {
 	    [bin_host] => 
 	    [REVERSE]  => 
 	    [HAS_TARGETS] => 
-	    //[R_DOMAIN]  => 
-	    //[RDATA]     => Array()
-	    [AN]   =>
-	    [AU]   =>
-	    [AD]   =>
-	    [src]  => '?'
-	    [dest] => ''
+	    [AN]          => Array()
+	    [AU]          => Array()
+	    [AD]          => Array()
+	    [src]         => '?'
+	    [dest]        => ''
 	    [QTYPE_INT]  => 1
 	    [QCLASS_INT] => 1
 	    [QTYPE]      => A
@@ -140,14 +145,16 @@ class Answer extends _base_QuestionAnswer {
 	public $l_host;
 	public $REVERSE;
 	public $HAS_TARGETS;
-	//public $R_DOMAIN;
-	//public $RDATA = array();
 	public $AN = array();
 	public $AU = array();
 	public $AD = array();
 	public $src;		// One character code to indicate where answer was obtained from (? - Unknown, T - Static table, C - cache, R - resolver(), L - lookup)
 	public $dest;		// Human-readable "destination" (list of IP addresses or hosts) for log messages.
 	private $q;		// Pointer to the original Question object
+
+	public function __construct(&$q) {	// PHP7+ initialization function called automatically
+		$this-> Answer($q);
+	}
 
 	public function Answer(&$q) {	// initialization function called automatically
 		// $q is reference to original Question object. We need to get some values from there.
@@ -171,12 +178,8 @@ class Answer extends _base_QuestionAnswer {
 	}
 
 	public function count() {		// Returns number of ANSWERs.
-		// If answer came from cache, make sure you did not include record expiration timestamp (index [0]) into RDATA.
-		// It is not a DNS record. If you did, then you need to unset($abc[0]) right after you copied cached records into RDATA.
+		// If answer came from cache, make sure we do not include record expiration timestamp (index [0]) into account.
 		$i = 0;
-		//foreach( $this->RDATA as $recordset ) {
-		//    $i += count($recordset);
-		//}
 		foreach( $this->AN as $recordset ) {
 		    $i += count($recordset);
 		}
@@ -211,17 +214,18 @@ class Answer extends _base_QuestionAnswer {
 
 		foreach( $collections as $collection) {
 		    foreach( $collection as $type => $recordset ) {
-			if($type == '0') continue;					// Never mind. This is record expiration timestamp.
-			//echo 'Answer->get_data():193 - Looking at set of records of type '.$type."\n";
+			if($type == '0') continue;					// Never mind. This is internal record expiration timestamp.
+
+			//echo 'Answer->get_data():215 - Looking at set of records of type '.$type."\n";
+
 			if( count($recordset)==0 ) continue;				// Recordset has no data - either a special record that indicates host/ip wasn't found or some sort of problem. In either case we cannot continue and must move to the next record.
 			foreach( $recordset as $key => $record ) {
-				//echo 'Answer->get_data():196 - Looking at '.$type.' record for '.$key."\n";
 
-				// DISREGARD THIS >>> Nothe that array $record is used only once per itteration. We don't need to remember it beyond this switch().
-				// We will override it with a binary string produced as the result of the conversion (destroying original array).
+				//echo 'Answer->get_data():218 - Looking at type '.$type.' record for '.$key."\n";
+
 				switch($type) {
 				case 'A':
-					$rdata = _dword(ip2long($key));		// convert IPv4 to its binary form
+					$rdata = _dword(ip2long($key));			// convert IPv4 to its binary form
 					break;
 				case 'NS':
 					$this->HAS_TARGETS = true;			// This record contains name of a host that needs to be recursively looked up for its IP's
@@ -240,17 +244,17 @@ class Answer extends _base_QuestionAnswer {
 				case 'MX':
 					$this->HAS_TARGETS = true;			// This record contains name of a host that needs to be recursively looked up for its IP's
 					$rdata = _word($record['pri']).
-						  _labels($key);			// convert and format MX to its binary form
+						 _labels($key);				// convert and format MX to its binary form
 					break;
 				case 'SOA':						// Note: There is only one SOA allowed per domain, but we don't check for this.
 					$this->HAS_TARGETS = true;			// This record contains name of a host that needs to be recursively looked up for its IP's
 					$rdata = _labels($key).
-						  _labels($record['rname']).
-						  _dword ($record['serial']).
-						  _dword ($record['refresh']).
-						  _dword ($record['retry']).
-						  _dword ($record['expire']).
-						  _dword ($record['minimum-ttl']);	// convert and format SOA to its binary form
+						 _labels($record['rname']).
+						 _dword ($record['serial']).
+						 _dword ($record['refresh']).
+						 _dword ($record['retry']).
+						 _dword ($record['expire']).
+						 _dword ($record['minimum-ttl']);	// convert and format SOA to its binary form
 					break;
 				case 'SRV':
 					$rdata = _word($record['pri']).
@@ -267,11 +271,11 @@ class Answer extends _base_QuestionAnswer {
 				case 'TXT':
 					// TXT records over 255 bytes must be broken into multiple chunks of 255 bytes or less.
 					// First byte of each chunk indicates length of data that follows.
-					// rfc1035 states that total TXT length can be up to 65535 bytes, but in other places it mentions that
-					// whole response should fit into one UDP packet which is
-					// max. 65,535 − 8 byte UDP header − 20 byte IP header = 65,507 bytes practical limit for the data length
-					// minus up to 256 bytes of the chunk length byte prefixes = 65,251 of actual data.
-					// So, I would not push it over 64-65K.
+					// rfc1035 states that total TXT length can be up to 65535 bytes, but in other places it
+					// mentions that whole response should fit into one UDP packet which is
+					// max. 65,535 including 8-byte UDP header and 20-byte IP header which produces 65,507 bytes limit.
+					// From here, we must substract up to 256 bytes of the chunk length byte prefixes which produces 65,251
+					// bytes available for the data. I would not push it over 65K.
 
 					// First, lets check if we already have 'entries' array. If not, and length of our 'txt' is > 255, create it.
 					if( strlen($record['txt']) > 255 and !isset($record['entries']) ) {
@@ -289,8 +293,11 @@ class Answer extends _base_QuestionAnswer {
 						$rdata = chr(strlen($record['txt'])).$record['txt'];
 					}
 					break;
+
 				default:
-					echo '[!] Query of type '.$this->QTYPE." is not supported.\n";
+					//echo '[!] Record of type '.$this->QTYPE." is not supported.\n";
+					echo '[!] Response record of type '.$type." is not supported.\n";
+					echo 'Answer->get_data():297 - recordset['.$key.'] => '; print_r($record);
 					continue;
 				}
 
@@ -304,6 +311,7 @@ class Answer extends _base_QuestionAnswer {
 					$answer .= "\xc0\x0c";			//p1
 				}
 				$answer .= _word($QTYPES[$type]);		//p1-1
+// and right after "Query of type ALL is not supported", the above line produces PHP Notice "Undefined index: sbl.geniesys.net. in ..."
 				$answer .= _word($this->QCLASS_INT);		//p1-2
 				$answer .= _dword( isset($record['ttl']) ? $record['ttl'] : $settings['DNS']['TTL'] );	// if possible, use TTL received from parent DNS server. Otherwise use default TTL.
 				$answer .= _word(strlen($rdata));
@@ -332,7 +340,6 @@ class Answer extends _base_QuestionAnswer {
 		  foreach( $collection as $type => $recordset ) {
 		    if($type == '0') continue;				// Never mind. This is record expiration timestamp.
 		    if( in_array($type,array('A','CNAME','PTR','NS','AAAA')) ) {
-			//$a[] = $type.' ('.implode(',',array_keys($recordset)).')';
 			$a[] = $type.' '.implode(',',array_keys($recordset));
 		    } elseif( count($recordset) ) {
 			foreach( $recordset as $key => $record ) {
@@ -343,17 +350,43 @@ class Answer extends _base_QuestionAnswer {
 				case 'SOA':	$b[] = $record['serial'].'='.$key.','.$record['rname'];	break;
 				case 'HINFO':	$b[] = 'cpu='.$record['cpu'].', os='.$record['os']; break;
 				default:
-				      unset($record['ttl']);
-				      $b[] = $key.'=['.implode(',',$record).']';
+					if( isset($record['ttl']) ) {	# I can't think of a better way to check whether this is a single resold or a collection or records.
+						unset($record['ttl']);
+						$b[] = $key.'=['.implode(',',$record).']';
+					} else {
+						$b[] = $key.' '.implode(',',array_keys($record));
+					}
 				}
 			}
-			//$a[] = $type.' ('.implode(';',$b).')';
 			$a[] = $type.' '.implode(';',$b);
 			unset($b);
 		    }
 		  }
 		}
 		return implode(', ', $a) ;
+	}
+
+	public function get_domain() {	// Retruns domain portion parsed from result of a PTR query.
+		/*
+		'AN' => [
+			'PTR' => [
+				'88.250.63.133.static.ttnet.com.tr' => ['ttl': 43200]
+			]
+		]
+		
+		Returns: 'static.ttnet.com.tr'
+		*/
+
+		if(count($this->AN['PTR'])==0) return;
+
+		$e = array_reverse(explode('.',key($this->AN['PTR'])));
+
+		if( in_array($e[0],['ar','br','cn','co','mx','tr','sg','ae','uy','pe','cl']) && in_array($e[1],['com','net','th'] )) {
+			return $e[2].'.'.$e[1].'.'.$e[0];
+		} else {
+			return $e[1].'.'.$e[0];
+		}
+
 	}
 }
 

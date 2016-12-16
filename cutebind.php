@@ -1,8 +1,10 @@
 <?php
 ini_set('display_errors','On');
+ini_set('display_warnings','On');
 error_reporting(E_ALL);
-define('COREBIND_ROOT',dirname(__FILE__).'/');
-define('DNS_CACHE_SIZE', 1024 * 32);					// Size of shared memory used for cache (Bytes) . Default is 32Kb
+
+define('APP_ROOT',realpath(dirname(__FILE__)).'/');
+define('DNS_CACHE_SIZE', 1024 * 32);				// Size of shared memory used for cache (Bytes) . Default is 32Kb
 
 /*
 	Below are minimum default configuration parameters needed to start server without errors.
@@ -10,24 +12,24 @@ define('DNS_CACHE_SIZE', 1024 * 32);					// Size of shared memory used for cache
 */
 
 $settings = array(
-	'listen' 	=> '127.0.0.1',					// IP to listen on (IP addr of this host)
-	'listen_port' 	=> 53, 						// DNS-server port
-	'minDNSworkers' => 10,						// Minimum/Initial number of workers
-	'maxDNSworkers' => 20,						// Maximum number of workers
-	'pidfile' 	=> COREBIND_ROOT.'cutebind.pid',		// Default pid-file
-	'ipcdir' 	=> COREBIND_ROOT.'ipc/', 			// Directory for IPC
-	'configfile'	=> COREBIND_ROOT.'config.php',			// Config-file
-	'cutebind_path'	=> 'cutebind',					// Path to CuteBind's executable file.
-	'accesslog'	=> COREBIND_ROOT.'logs/%DATE=d.m.Y%.log',	// Log storage. This field has special syntax, but it allows simple path.
-	'errorlog'	=> COREBIND_ROOT.'logs/error.log',		// Error log storage.
-	'cache_dump'	=> COREBIND_ROOT.'logs/cache_dump.txt',		// Cache dump file.
-	'intfile'	=> '/tmp/cutebind.intfile.tmp',			// This path must point to file in writable folder (for all CuteBind processes).
-	'setuser'	=> '',						// You can set user of master process (sudo).
-	'setgroup'	=> '',						// You can set group of master process (sudo).
-	'use_fork'	=> TRUE,					// Enables multi-threading if possible.
+	'listen' 	=> '127.0.0.1',				// IP to listen on (IP addr of this host)
+	'listen_port' 	=> 53, 					// DNS-server port
+	'minDNSworkers' => 10,					// Minimum/Initial number of workers
+	'maxDNSworkers' => 20,					// Maximum number of workers
+	'pidfile' 	=> APP_ROOT.'cutebind.pid',		// Default pid-file
+	'ipcdir' 	=> APP_ROOT.'ipc/', 			// Directory for IPC
+	'configfile'	=> APP_ROOT.'config.php',		// Config-file
+	'cutebind_path'	=> 'cutebind',				// Path to CuteBind's executable file.
+	'accesslog'	=> APP_ROOT.'logs/%DATE=Y-m-d%.log',	// Log storage. This field has special syntax, but it allows simple path.
+	'errorlog'	=> APP_ROOT.'logs/error.log',		// Error log storage.
+	'cache_dump'	=> APP_ROOT.'logs/cache_dump.txt',	// Cache dump file.
+	'tmpfile'	=> '/tmp/cutebind.tmp',			// Temporary report file. CuteBind processes must have write access to this location.
+	'setuser'	=> '',					// You can set user of master process (sudo).
+	'setgroup'	=> '',					// You can set group of master process (sudo).
+	'use_fork'	=> TRUE,				// Enables multi-threading if possible.
 	'logging'=> array(
-			'date_format' => 'Y-m-d H:i:s',			// 'r' for RFC2822 formatted date (Tue, 29 Jul 2014 09:00:09 +0000). See PHP function date() to make your own format.
-			'level' => 1					// Logging level (currently is not used)
+			'date_format' => 'Y-m-d H:i:s',		// 'r' for RFC2822 formatted date (Tue, 29 Jul 2014 09:00:09 +0000). See PHP function date() to make your own format.
+			'level' => 1				// Logging level (currently is not used)
 			),
 	'DNS'	=> array(
 			'TTL'=> 60,		// Default Time-To-Life (TTL). If DNS record has its own 'ttl', that ttl will be used (regardless of the record source). Otherwise this value.
@@ -53,12 +55,12 @@ $settings = array(
 				),
 	);
 
-$ver = '2.2';
+$ver = '2.3';
 
 if (!function_exists('cli_set_process_title')) {function cli_set_process_title($t) {}}
 
-require_once COREBIND_ROOT.'include/common.php';		// Various common functions that are used from this point on.
-require_once COREBIND_ROOT.'include/dns-cache.php';		// Everything related to runtime cache feature
+require_once APP_ROOT.'include/common.php';		// Various common functions that are used from this point on.
+require_once APP_ROOT.'include/dns-cache.php';		// Everything related to runtime cache feature
 
 $runmode = isset($_SERVER['argv'][1]) ? str_replace('-','',$_SERVER['argv'][1]) : '';
 $_SERVER['argv'][1] = '';
@@ -66,15 +68,16 @@ $args = getArgs($_SERVER['argv']);
 $args_ex = '';
 
 // Load configuration file (in order of priority)
-if (isset($args['configfile'])) {				// See if alternative configuration file is specified in the command line.
+if (isset($args['configfile'])) {				// 1. See if alternative configuration file is specified in the command line.
 	$settings['configfile'] = $args['configfile'];		// update $settings['configfile']
-	include $settings['configfile'];			// and load it
-} elseif( file_exists('config.my.php') ) {			// my personalized configuration
+} elseif( file_exists(APP_ROOT.'config.my.php') ) {		// 2. See if used-defined configuration file exists in APP_ROOT directory.
+	$settings['configfile'] = APP_ROOT.'config.my.php';	// update $settings['configfile']
+} elseif( file_exists('config.my.php') ) {			// 3. See if used-defined configuration file exists in current directory.
 	$settings['configfile'] = 'config.my.php';		// update $settings['configfile']
-	include 'config.my.php';				// and load it
 } elseif( $settings['configfile'] !== '') {
-	include $settings['configfile'];			// Load configuration file specified in $settings['configfile'] (default is config.php)
+	//nothing						// 4. Use default configuration file specified in $settings['configfile'] (APP_ROOT.'config.php')
 }
+include $settings['configfile'];				// and load this file.
 
 echo "\n";
 
@@ -101,7 +104,7 @@ foreach ($args as $k => $v) {					// Iterate command line parameters and update 
 	case 'logstorage'  : $settings[$k] = $v; break;
 	case 'setuser'     : $settings[$k] = $v; break;
 	case 'setgroup'    : $settings[$k] = $v; break;
-	case 'intfile'     : $settings[$k] = $v; break;
+	case 'tmpfile'     : $settings[$k] = $v; break;
 	case 'debug'	   : $settings['DEBUG'] = true; break;
 	default:
 		fwrite(STDERR,'[WARN] Unknown parameter \''.$k."'\n");
@@ -112,14 +115,19 @@ foreach ($args as $k => $v) {					// Iterate command line parameters and update 
 
 unset($args);	// don't need it anymore
 
-$pidfile = realpath($settings['pidfile']);
-if (!file_exists($pidfile)) touch($pidfile);
+if (!file_exists($settings['pidfile'])) {
+	touch($settings['pidfile']);
+	if (!file_exists($settings['pidfile'])) {
+	   log_error("[ERROR] Can't create process id file $settings[pidfile]\n");
+	   exit(1);
+	}
+}
 
 if ($runmode != 'master') { // We are control script (Command Line Interface)
 	// Reason for having it in separate include file is that the master process nor workers
 	// ever use any of this code, so they don't need to know about it. Also, makes program
 	// easier to read.
-	require_once COREBIND_ROOT.'include/cli.php';
+	require_once APP_ROOT.'include/cli.php';
 	exit(0);
 }
 
@@ -135,6 +143,11 @@ $ipc_prefix  = dechex(crc32($settings['pidfile']));
 define('MASTER_PID',getmypid());
 
 if (version_compare(PHP_VERSION,'5.3.0','<')) declare(ticks = 1);
+
+if (!function_exists('shmop_open')) {				// Test if php_ipc is installed
+   echo "[ERROR] shmop_open() is not found. Please add PHP shared memory library (php5-shmop) to your PHP instalation.\n";
+   exit(1);
+}
 
 // --- BEGIN --- SHARED MEMORY INITIALIZATION FOR 'dns-status-map' ---------------------------
 touch($tp = $settings['ipcdir'].$ipc_prefix.'.dns-status-map.cbt');
@@ -258,10 +271,10 @@ if(isset($settings['mysql']['host'])) {
 
 echo "[STATUS] Cache: ".((int)DNS_CACHE_SIZE/1024).' KB; '.count($dns_cache['table']).' hosts, '.$i.' bytes, '.round($i*100/DNS_CACHE_SIZE,2).'% usage; TTL '.$dns_cache['TTL']." sec.\n";
 
-require_once COREBIND_ROOT.'include/worker.php';
+require_once APP_ROOT.'include/worker.php';
 
 if ($runmode == 'master') {
     // We are the master. Include module that has additional functionality that only master process uses.
-    require_once COREBIND_ROOT.'include/master.php';
+    require_once APP_ROOT.'include/master.php';
 }
 ?>

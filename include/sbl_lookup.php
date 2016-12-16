@@ -85,18 +85,20 @@ function sbl_lookup( &$q, &$a ) {	// Spam Block List (SBL) handler
 
 				//echo '$age = '.$age."\n";
 
+				$str_domain = $a2->get_domain();
+
 				if( $age === false ) {
 					if($settings['DEBUG']) echo "[DEBUG] sbl_lookup() - Unable to parse domain registration date or no such value found in the whois output\n";
 				} elseif( $age === 0 ) {
-					if($settings['DEBUG']) echo "[DEBUG] sbl_lookup() - Domain is not registered or there is no whois server for such TLD\n";
+					if($settings['DEBUG']) echo "[DEBUG] sbl_lookup() - Domain '$str_domain' is not registered or there is no whois server for such TLD\n";
 					$replycode = 3;
 					$rejection_reason = 7;
-					dnsbl_blacklist_add($q->IP,'Domain is not registered or no whois server for such TLD');
+					dnsbl_blacklist_add($q->IP,"Domain '$str_domain' is not registered or no whois server for such TLD");
 				} elseif( $age < $settings['SBL']['min_age'] ) {
-					if($settings['DEBUG']) echo "[DEBUG] sbl_lookup() - Insufficient domain age: $age < $settings[SBL][min_age]\n";
+					if($settings['DEBUG']) echo "[DEBUG] sbl_lookup() - Insufficient domain age: $age < ".$settings['SBL']['min_age']."\n";
 					$replycode = 3;
 					$rejection_reason = 6;
-					dnsbl_blacklist_add($q->IP,'Insufficient domain age');
+					dnsbl_blacklist_add($q->IP,"$str_domain - Insufficient domain age: $age < ".$settings['SBL']['min_age']);
 				}
 
 			} elseif($replycode == 3) {
@@ -391,8 +393,7 @@ function sbl_domain_age( &$q2, &$a2 ) {
 	// do nothing if configuration parameter 'min_age' < 1 or is not set
 	if(!isset($settings['SBL']['min_age']) || $settings['SBL']['min_age'] < 1) return false;
 
-	$e = array_reverse(explode('.',key($a2->AN['PTR'])));
-	$str_domain = $e[1].'.'.$e[0];
+	$str_domain = $a2->get_domain();
 
 	// Check DNS cache for parameter 'age' added by previous lookup.
 	// If not in cache, check database. If found, put it back into cache and return the value.
@@ -406,24 +407,33 @@ function sbl_domain_age( &$q2, &$a2 ) {
 
 	// Otherwise continue with whois lookup
 
+	$privateRegistration = false;
+	$noWhoisData = false;
+
 	//echo '$ whois '.$str_domain."\n";
 	exec('whois '.$str_domain, $output);
 
 	foreach($output as $line) {
+
+		if( in_array( substr($line,0,1), ['%','#'] ) ) continue;	// skip comments
+
 		switch(true) {
 		case( stripos($line,'creat') !== false && stripos($line,'date') !== false && strpos($line,':') !== false):
 			$d = $line;
 			break;
-		case (stripos($line,'created on:')    !== false):
+		case (stripos($line,'created on')    !== false):
 			$d = $line;
 			break;
-		case (stripos($line,'[created on]')   !== false):
+		case (stripos($line,'created:')      !== false):
 			$d = $line;
 			break;
 		case (stripos($line,'registration date:') !== false):
 			$d = $line;
 			break;
-		case (stripos($line,'created:')       !== false):
+		case (stripos($line,'Fecha de registro:') !== false):
+			$d = $line;
+			break;
+		case (stripos($line,'registration time:') !== false):
 			$d = $line;
 			break;
 		case (stripos($line,'registered on:') !== false):
@@ -438,25 +448,46 @@ function sbl_domain_age( &$q2, &$a2 ) {
 		case (stripos($line,'Record Created') !== false):
 			$d = $line;
 			break;
+		case (stripos($line,'Creation Date')  !== false):
+			$d = $line;
+			break;
 		case (stripos($line,'no whois server')!== false):
 			return 0;
 			break;
 		case (stripos($line,'No match for')   !== false):
 			return 0;
 			break;
+		case (stripos($line,'last-updated:')  !== false):
+			$d = $line;
+			break;
+		case (stripos($line,'last update')  !== false && stripos($line,' by') == false):
+			$d = $line;
+			break;
+		case (stripos($line,'not disclosed') !== false):
+			$privateRegistration = true;
+			break;
 		}
 
+		// If possible, remove everything before first ": " from this line
+		// Blank space is needed to prevent chopping-off at HH:MM:SS position. This section needs to be revised.
 		if(isset($d)) {
 			$line = trim($line);
-			$d    = trim(substr($line,strpos($line,':')+1));
+			if( strpos($line,': ') !== false ) {
+				$d = trim(substr($line,strpos($line,': ')+1));
+			}
 			break;
 		}
 	}
 
 	if(!isset($d)) {
-		echo "sbl_domain_age() - Unable to find line that indicates domain registration date. Below is result of whois lookup.\n";
-		print_r($output);
-		return false;
+		if( $privateRegistration ) {
+			echo "sbl_domain_age() - Private domain registration. Email REFUSED.\n";
+			return 0;
+		} else {
+			echo "sbl_domain_age() - Unable to find line that indicates domain registration date. Below is result of whois lookup.\n";
+			print_r($output);
+			return false;
+		}
 	}
 
 	//echo $line."\n";
@@ -465,15 +496,22 @@ function sbl_domain_age( &$q2, &$a2 ) {
 
 		// Extract date from line found above. Add patterns and corresponding replacements as needed.
 		// Result of this preg should be a date string convertable by PHP date_parse() into a datetime type.
-
+		// You can grab data string from error.log (can't convert '<string>') and test new patterns @ https://regex101.com/
 		$patterns = array(
-			'/.*(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2}).*/'	=> '$1-$2-$3 $4:$5:$6',
-			'/.*(\d{4}[-\.]\d{2}[-\.]\d{2}\s\d{2}:\d{2}:\d{2}).*/'	=> '$1',
-			'/.*(\d{4})\/(\d{2})\/(\d{2}).*/'			=> '$1-$2-$3',
-			'/.*(\w{3})\s(\d{1,2})\s(\d{2}:\d{2}:\d{2})\s(\d{4})/'	=> '$1 $2 $4 $3',
-			'/.*(\d{2})[-\.](\w{3})[-\.](\d{4}).*/'                 => '$3-$2-$1',
-			'/before Aug-1996/'                                     => '1996-07-01',	// occurs with .co.uk domains
-			'/before 2001/'						=> '2000-01-01',
+		'/.*([12][90]\d\d)(\d{2})(\d{2})(\d{2})(\d{2})(\d{2}).*/'			=> '$1-$2-$3 $4:$5:$6',
+		'/.*([12][90]\d\d)[\/\-\.](\d{2})[\/\-\.](\d{2})\s(\d{2}:\d{2}:\d{2}).*/'	=> '$1-$2-$3 $4',
+		'/.*([12][90]\d\d)[\/\-\.](\d{2})[\/\-\.](\d{2}).*/'				=> '$1-$2-$3',
+		'/.*([12][90]\d\d)[\/\-\.]?([01]\d)[\/\-\.]?([0123]\d).*/'			=> '$1-$2-$3',		// [19|20]YY[/-.]MM[/-.]DD or [19|20]YYMMDD
+		'/.*([12][90]\d\d)[\/\-\.]?([0123]\d)[\/\-\.]?([01]\d).*/'			=> '$1-$3-$2',		// [19|20]YY[/-.]DD[/-.]MM or [19|20]YYDDMM
+		'/.*([0123]\d)[\/\-\.]([01]\d)[\/\-\.]([12][90]\d\d).*/'			=> '$3-$2-$1',		// DD[/-.]MM[/-.][19|20]YY
+		'/.*([0123]?\d)\.([01]?\d)\.(20\d\d)\s(\d{2}:\d{2}:\d{2}).*/'			=> '$3-$2-$1 $4',	//  D[/-.]MM[/-.][19|20]YY
+		'/.*([01]\d)[\/\-\.]([0123]\d)[\/\-\.]([12][90]\d\d).*/'			=> '$3-$1-$2',		// MM[/-.]DD[/-.][19|20]YY
+		'/([Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec])\s(\d{1,2})\s(\d{2}:\d{2}:\d{2})\s?(\w{3})?\s([12][90]\d\d).*/'=> '$1 $2 $5 $3 $4',	// 'Sun Dec 11 21:06:04[ GMT] 2016 <<<<'
+		'/([Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec]\s[0-3]?\d\s[0-2]\d\:[0-5]\d:\d\d\sGMT\s\d{4})/'	=> '$1',	// Feb 01 00:00:00 GMT 2015
+		'/.*(\d{2})[\-\.](\w{3})[\-\.]([12][90]\d\d).*/'				=> '$3-$2-$1',
+		'/^(\d{1,2})\sde\s(\w{3})\w+\sde\s([12][90]\d\d)\s?\(?(\d{2}:\d{2}:\d{2}\s\w\w\w)?\)?/'	=> '$2 $1 $3 $4',	// 10 de noviembre de 2016 (10:18:34 GMT) -> nov 10 2016 10:18:34 GMT
+		'/before Aug\-1996/'                                     			=> '1996-07-01',	// occurs with .co.uk domains
+		'/before 2001/'									=> '2001-01-01'
 		);
 
 		foreach($patterns as $p => $r) {
@@ -506,7 +544,7 @@ function sbl_domain_age( &$q2, &$a2 ) {
 
 		return $interval->days;
 	} else {
-		log_error("sbl_domain_age() - can't convert '$line' to a date. You may want to add aditional pattern to reformat this value into a date string.");
+		log_error("sbl_domain_age() - can't convert '$d' to a date. Aditional pattern is needed to extraxt the date string.");
 		return false;
 	}
 }
@@ -540,7 +578,7 @@ function sbl_domain_age_get( $str_domain ) {
 
 /* ----- SURBL Functions ----- */
 
-function surbl_check($domain) {
+function surbl_check( $domain ) {
 	global $settings, $db;
 
 	if( $db = connect_db() ) {

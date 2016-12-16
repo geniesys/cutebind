@@ -43,11 +43,23 @@ function dns_cache_add($record) {
 
 	$t = $record['type'];
 	$h = $record['host'];
-	$c = $record['class'];			// Disable this line if you need to keep track of classes.
+	$c = $record['class'];			// Disable this line to keep track of classes.
 
 	if($t == 'PTR') {
 		$e = explode('.',$h);
 		$h = $e[3].'.'.$e[2].'.'.$e[1].'.'.$e[0];
+/*
+Logic needs to be rivised here. Must also account for 7-element array where 2nd is like 0/24
+
+135.0/24.96.8.207.in-addr.arpa
+
+I should look at the $record again and see if I can translate canonical name to actual .in-addr.arpa
+
+Non-authoritative answer:
+135.96.8.207.in-addr.arpa       canonical name = 135.0/24.96.8.207.in-addr.arpa
+135.0/24.96.8.207.in-addr.arpa  name = multi125.postfix.bmsend.com
+
+*/
 		if(count($e) != 6) {
 			log_error('dns_cache_add() - PTR record contains invalid IPv4 address '.$h);
 			if($settings['DEBUG']) print_r($record);
@@ -62,7 +74,7 @@ function dns_cache_add($record) {
 				return false;
 			}
 		}
-	} else {
+	} elseif( substr($h, -1) !== '.' ) {
 		$h .= '.';
 	}
 
@@ -70,7 +82,7 @@ function dns_cache_add($record) {
 	unset($record['host']);
 	unset($record['class']);		// Disable this line if you need to keep track of classes.
 
-	$dns_cache['table'][$h][0] = time()+$dns_cache['TTL'];			// time always goes into 1st column (index:[0])
+	$dns_cache['table'][$h][0] = time()+$dns_cache['TTL'];			// internal record exp. time always goes into [0]
 
 /*
 	if($t != 'A' and $t != 'NS' and $t != 'AAAA' and $t != 'MX' ) {
@@ -126,6 +138,48 @@ function dns_cache_add($record) {
 	  print_r($dns_cache['table'][$h]);
 	}
 */
+	$dns_cache['DIRTY'] = TRUE;
+	return true;
+}
+
+function dns_cache_add_raw($records) {
+	/*
+	Add one or more record to $dns_cache['table'] array or replace existing onece.
+	(!) This function skipps all conversions and assumes that $record is already an associative array and has proper structure.
+	$record must be passed as an array even if it contains only one record. This is done to preserve the top-level key.
+	Returns:  void
+	Usage  : dns_cache_add_raw([$record1, $record2, ...]);
+
+	$record example #1:
+
+	[resolver.example.tld.] => Array (
+		[A] => Array (
+			[12.34.56.78] => Array (
+				[ttl] => 60
+			)
+		)
+	)
+
+
+	$record example #2:
+
+	[127.0.0.1.] => Array (
+		[PTR] => Array (
+			[localhost] => Array (
+				[ttl] => 10
+			)
+		)
+	)
+
+	*/
+
+	global $settings, $dns_cache;
+
+	foreach($records as $key => $record) {
+		$record[0] = time()+$dns_cache['TTL'];			// internal record exp. time always goes into [0]
+		$dns_cache['table'][$key] = $record;
+	}
+
 	$dns_cache['DIRTY'] = TRUE;
 	return true;
 }

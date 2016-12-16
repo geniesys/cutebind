@@ -31,7 +31,7 @@ if (isset($settings['setuser']) && ($settings['setuser'] !== '')) {
 }
 
 if (!sizeof($dns_sockets)) {
-      $msg = "[ERROR] No listening ports for DNS-server.\n";
+      $msg = "[ERROR] No listening ports for DNS server.\n";
       fwrite($plog,$msg);
       echo $msg;
       exit(0);
@@ -39,11 +39,12 @@ if (!sizeof($dns_sockets)) {
 
 for ($i = 0; $i < $settings['minDNSworkers']; ++$i) run_worker('dns');
 
-echo "[STATUS] CuteBind $ver. System is up ".(($settings['DEBUG']) ? '(debugger is ON)':'(debugger is OFF)').". Accepting connections on ".$settings['listen'].':'.$settings['listen_port'].".\n\n";
+echo "[STATUS] CuteBind $ver. System is up. Debugger: ".(($settings['DEBUG']) ? 'ON':'OFF').". Master PID: ".getmypid().". Accepting connections on ".$settings['listen'].':'.$settings['listen_port'].".\n\n";
 
 define('START_TIME',time());
 
 function master_sighandler($signo) {
+
 	global $settings;
 	global $zmap;
 	global $ipc_files;
@@ -51,17 +52,31 @@ function master_sighandler($signo) {
 	global $dns_cache;
 
 	static $signals = array(
-			SIGTERM => 'SIGTERM',
-			SIGABRT => 'SIGABRT',
-			SIGINT  => 'SIGINT',			// catches Ctrl+C
-			SIGKILL => 'SIGKILL',
-			SIGUSR1 => 'SIGUSR1 (Fullstatus)',
-			SIGUSR2 => 'SIGUSR2 (Re-open logs)',
-			SIGHUP  => 'SIGHUP (Debugger ON/OFF)'	// (Ping-pong)
-		      );
+		SIGHUP  => 'SIGHUP (1)  Debugger ON/OFF',	// (Ping-pong)
+		SIGINT  => 'SIGINT (2)',			// catches Ctrl+C
+		SIGQUIT => 'SIGQUIT (3)',
+		SIGABRT => 'SIGABRT (6)',
+		SIGKILL => 'SIGKILL (9)',
+		SIGUSR1 => 'SIGUSR1 (10) Fullstatus',
+		SIGUSR2 => 'SIGUSR2 (12) Reopen/rotate logs',
+		SIGTERM => 'SIGTERM (15)'
+	);
 
 	echo '[STATUS] Master caught signal '.$signals[$signo].".\n";
 	switch($signo) {
+	case SIGHUP:			// Debugger ON/OFF
+		$settings['DEBUG'] = !$settings['DEBUG'];
+		echo 'Debugger is '.(($settings['DEBUG']) ? 'ON':'OFF')."\n";
+		foreach ($zmap['dns'] as $v) {
+			posix_kill($v[0],SIGHUP);
+		}
+
+		$fp = fopen($settings['cache_dump'],'w');
+		fwrite($fp,var_export($dns_cache,true));
+		fclose($fp);
+		echo 'DNS Cache content is written into '.$settings['cache_dump']."\n";
+		break;
+
 	case SIGUSR1:			// fullstatus-report
 		$v  = time()-START_TIME;
 		$q_counter = get_q_counter('dns');
@@ -78,30 +93,19 @@ function master_sighandler($signo) {
 		$i = strlen(rtrim(shmop_read($ipc['dns-cache'],0,DNS_CACHE_SIZE)));
 		$status .= "\nCache: ".((int)DNS_CACHE_SIZE/1024).' KB; '.count($dns_cache['table']).' hosts, '.$i.' bytes, '.round($i*100/DNS_CACHE_SIZE,2).'% usage; TTL '.$dns_cache['TTL']." sec.\n";
 
-		$fp = fopen($settings['intfile'].'.new','w');
+		$fp = fopen($settings['tmpfile'].'.new','w');
 		fwrite($fp,$status);
 		fclose($fp);
-		rename($settings['intfile'].'.new',$settings['intfile']);
+		rename($settings['tmpfile'].'.new',$settings['tmpfile']);
 		echo $status;
 		break;
+
 	case SIGUSR2:			// reopen logs
 		reopen_logstorages();
 		break;
-	case SIGHUP:			// Debugger ON/OFF
-		$settings['DEBUG'] = !$settings['DEBUG'];
-		echo 'Debugger is '.(($settings['DEBUG']) ? 'ON':'OFF')."\n";
-		foreach ($zmap['dns'] as $v) {
-			posix_kill($v[0],SIGHUP);
-		}
 
-		$fp = fopen($settings['cache_dump'],'w');
-		fwrite($fp,var_export($dns_cache,true));
-		fclose($fp);
-		echo 'DNS Cache content is written into '.$settings['cache_dump']."\n";
-
-		break;
 	default:
-	    if($signo == SIGTERM || $signo == SIGABRT|| $signo = SIGINT) {
+	    if( $signo = SIGINT || $signo == SIGQUIT || $signo == SIGABRT || $signo == SIGKILL || $signo == SIGTERM ) {
 		$status = 0;
 		if(!defined('TERMINATED')) define('TERMINATED',TRUE);		// Occasionaly get PHP Notice: Constant TERMINATED already defined in /usr/local/cutebind/cutebind on line ...
 		echo '[STATUS] Sending SIGTERM to all workers.'."\n";
@@ -113,7 +117,7 @@ function master_sighandler($signo) {
 		sleep(1);					// wait 1 more sec before closing all resources to let worker(s) finish current response (if any).
 		foreach ($ipc_files as $v) {
 			echo $v."\n";
-			unlink($v);
+			@unlink($v);
 		}
 
 		// release shared memory on exit.
@@ -131,12 +135,13 @@ function master_sighandler($signo) {
 
 pcntl_signal(SIGTERM,'master_sighandler');
 pcntl_signal(SIGABRT,'master_sighandler');
+pcntl_signal(SIGQUIT,'master_sighandler');
 pcntl_signal(SIGINT ,'master_sighandler');
 pcntl_signal(SIGHUP ,'master_sighandler');
 pcntl_signal(SIGUSR1,'master_sighandler');
 pcntl_signal(SIGUSR2,'master_sighandler');
 
-$fp = fopen($pidfile,'w');
+$fp = fopen($settings['pidfile'],'w');
 fwrite($fp,getmypid());
 fclose($fp);
 
