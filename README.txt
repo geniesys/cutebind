@@ -1,7 +1,7 @@
 
-CuteBind 2.0
+CuteBind 2.x
 
-Second generation Powerful scriptable DNS-server. LGPL.
+Second generation Powerful scriptable DNS-server with SBL/SURBL functionality. LGPL.
 
 All key features of original CuteBind 0.1b are preserved:
  - Full resolving control (scripting).
@@ -32,6 +32,18 @@ New features added:
 --------------------------------------------------------------------------------------
 					INSTALLATION
 --------------------------------------------------------------------------------------
+* Note to Ubuntu users
+  When program is run in CLI mode (not as deamon), there is a problem terminating
+  it via Ctrl+C. This issue appears to be common problem in Ubuntu and has been around
+  for quite some time. At this time, we're still looking for a solution or workaround.
+  Meantime, please use one of the following methods to terminate the program:
+
+  a) From separate terminal window execute 'sudo cutebind stop'
+
+  b) Ctrl+Z then type 'sudo kill -2 <PID>' (PID is shown in when program starts or look
+     into 'cutebing.pid' file or 'ps -ef | grep cutebind' and get the id of 'master'
+     process which is smallest number).
+
 
 Install PHP 5 standard package (latest stable).
 
