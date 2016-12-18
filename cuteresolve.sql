@@ -69,6 +69,12 @@ CREATE DEFINER=`root`@`localhost` PROCEDURE `HOURLY`()
     COMMENT 'Primary purpose of this procedure is to update blacklist from collected spam records.\n    The name HOURLY only suggests execution frequency. On high traffic systems recommended frequency is every 15, 10 or even 5 minutes.\n    This process should be somewhat syncronized with junkmail collection activity. Idealy, it should run shortly after it.'
 BEGIN
 
+/* Correct invalid date_added, date_expires values */
+UPDATE dnsbl_whitelist SET date_added = now() WHERE date_added = DATE('0000-00-00 00:00:00');
+UPDATE dnsbl_blacklist SET date_added = now() WHERE date_added = DATE('0000-00-00 00:00:00');
+UPDATE dnsbl_whitelist SET date_expires = NULL WHERE date_expires = DATE('0000-00-00 00:00:00');
+UPDATE dnsbl_blacklist SET date_expires = NULL WHERE date_expires = DATE('0000-00-00 00:00:00');
+
 /* Delete expired records from whitelist table */
 DELETE FROM dnsbl_whitelist WHERE date_expires IS NOT NULL AND date_expires < NOW();
 
@@ -147,6 +153,12 @@ BEGIN
 /* Delete old records from domains table */
 DELETE FROM domains WHERE date_added < DATE_ADD(NOW(), INTERVAL -1 YEAR);
 
+/* Delete old records from surbl_kb table */
+DELETE FROM surbl_kb WHERE date_seen < DATE_ADD(NOW(), INTERVAL -3 MONTH);
+
+/* Delete old records from surbl_blacklist table */
+DELETE FROM surbl_blacklist WHERE (date_expires IS NULL AND date_added < DATE_ADD(NOW(), INTERVAL -3 MONTH)) OR date_expires < NOW();
+
 END$$
 DELIMITER ;
 
@@ -155,15 +167,17 @@ CREATE DEFINER=`root`@`localhost` PROCEDURE `shedule_events`()
 BEGIN
 /*
 CREATE DEFINER = `root`@`localhost`
- EVENT IF NOT EXISTS EVERY_30_MINUTES
-    ON SCHEDULE EVERY 30 MINUTE STARTS '2015-01-01 00:01:00'
+ EVENT IF NOT EXISTS cuteresolve.EVERY_30_MINUTES
+    ON SCHEDULE EVERY 30 MINUTE STARTS DATE_ADD(CURDATE(), INTERVAL 5 MINUTE)
+    DISABLE ON SLAVE
     COMMENT 'Shedules what needs to run every 30 minutes. Read instructions for every procedure being executed here.'
     DO
       CALL HOURLY;
 
 CREATE DEFINER = `root`@`localhost`
- EVENT IF NOT EXISTS DAILY
-    ON SCHEDULE EVERY 1 DAY STARTS '2015-01-01 00:10:00'
+ EVENT IF NOT EXISTS cuteresolve.DAILY
+    ON SCHEDULE EVERY 1 DAY STARTS now()
+    DISABLE ON SLAVE
     COMMENT 'Shedules what needs to run once a day. Read instructions for every procedure being executed here.'
     DO
       CALL HOUSEKEEPING;
