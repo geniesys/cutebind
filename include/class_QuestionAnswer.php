@@ -346,7 +346,7 @@ class Answer extends _base_QuestionAnswer {
 				switch($type) {
 				case 'MX' :	$b[] = $record['pri'].'='.$key; break;
 				case 'SRV':	$b[] = $record['pri'].'='.$key.':'.$record['port'].','.$record['weight']; break;
-				case 'TXT':	$b[] = '\''.((strlen($record['txt']) > 53) ? substr($record['txt'],0,50).'...' : $record['txt']).'\''; break;
+				case 'TXT':	$b[] = '\''.((strlen($record['txt']) > 63) ? substr($record['txt'],0,60).'...' : $record['txt']).'\''; break;
 				case 'SOA':	$b[] = $record['serial'].'='.$key.','.$record['rname'];	break;
 				case 'HINFO':	$b[] = 'cpu='.$record['cpu'].', os='.$record['os']; break;
 				default:
