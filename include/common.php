@@ -117,4 +117,22 @@ function hecho($string) {
 	return preg_replace('~.~se','sprintf("\\x%02x",ord("$0"))',$string);
 }
 
+function cidrToRange($value) {	// converts something like a.b.c.d/24 to an array of IP addresses
+	$range = array();
+
+	$split = explode('/', $value);	// (!) need to handle a.b.c/24.d too
+
+	if (!empty($split[0]) && is_scalar($split[1]) && filter_var($split[0], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+		$rangeStart = ip2long($split[0]) & ((-1 << (32 - (int)$split[1])));
+		$rangeEnd   = ip2long($split[0]) + pow(2, (32 - (int)$split[1])) - 1;
+
+		for ($i = $rangeStart; $i <= $rangeEnd; $i++) {
+			$range[] = long2ip($i);
+		}
+		return $range;
+	} else {
+		return $value;
+	}
+}
+
 ?>

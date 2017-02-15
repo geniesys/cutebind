@@ -72,7 +72,7 @@ function rev_lookup( &$q, &$a ) {	// Reverse-lookup an IP address (addr-to-name 
 	}
 */
 	switch(true) {
-	case (isset($table[$q->IP]['PTR'])):						// try internal (static) table
+	case (isset($table[$q->IP]['PTR'])):						// try internal table
 		$result['PTR'] = $table[$q->IP]['PTR'];
 		$a->src = 'T';
 		break;
@@ -102,7 +102,7 @@ function rev_lookup( &$q, &$a ) {	// Reverse-lookup an IP address (addr-to-name 
 			    if($settings['DEBUG']) {
 				echo 'Added this PTR record into cache: ';
 				print_r($record);
-				echo 'isset( $cache['.$q->IP.'][PTR] ) = '.isset($cache[$q->IP]['PTR']);
+				echo 'isset( $cache['.$q->IP.'][PTR] ) = '.isset($cache[$q->IP]['PTR'])."\n";
 			    }
 			 } else {
 			 	return 5;

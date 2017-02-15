@@ -581,6 +581,12 @@ function sbl_domain_age_get( $str_domain ) {
 function surbl_check( $domain ) {
 	global $settings, $db;
 
+	// Skip w3.org. It comes from DTD headers for all HTML-based emails
+	if( $domain == 'w3.org' ) return 0;
+
+	// Skip all .gov domains. Always treat as "neutural".
+	if( substr($domain,-4) == '.gov' )  return 0;
+
 	if( $db = connect_db() ) {
 		$sql = "CALL `surbl_check`('$domain');";
 		//echo $sql."\n";

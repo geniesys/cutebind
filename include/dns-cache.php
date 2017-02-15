@@ -1,6 +1,6 @@
 <?php
 $dns_cache = array(				// DNS cache array
-	'TTL'	=> 300,				// Default time for records to remain in cache (sec). Please not this is not the same as 'ttl' of a DNS record.
+	'TTL'	=> 600,				// Default time for records to remain in cache (sec). Please not this is not the same as 'ttl' of a DNS record.
 	'DIRTY'	=> TRUE,			// Flag indicating whether or not cache has been modified and needs to be put into shared memory. Keep default as TRUE to force initial write into shared memory.
 	'DEBUG'	=> FALSE, 			// Turn debugger on/off. It prints additional debug messages related to cache operations.
 	'table'	=> array(			// Hash-table
@@ -43,27 +43,92 @@ function dns_cache_add($record) {
 
 	$t = $record['type'];
 	$h = $record['host'];
-	$c = $record['class'];			// Disable this line to keep track of classes.
+	$c = $record['class'];
 
 	if($t == 'PTR') {
-		$e = explode('.',$h);
-		$h = $e[3].'.'.$e[2].'.'.$e[1].'.'.$e[0];
 /*
 Logic needs to be rivised here. Must also account for 7-element array where 2nd is like 0/24
-
-135.0/24.96.8.207.in-addr.arpa
-
 I should look at the $record again and see if I can translate canonical name to actual .in-addr.arpa
+
+Examples:
+
+nslookup
+> set debug=on
+> set type=PTR
+> 135.96.8.207.in-addr.arpa.
 
 Non-authoritative answer:
 135.96.8.207.in-addr.arpa       canonical name = 135.0/24.96.8.207.in-addr.arpa
 135.0/24.96.8.207.in-addr.arpa  name = multi125.postfix.bmsend.com
 
+> 240.237.102.38.in-addr.arpa.
+Non-authoritative answer:
+240.237.102.38.in-addr.arpa     canonical name = 240.192/26.237.102.38.in-addr.arpa
+240.192/26.237.102.38.in-addr.arpa      name = lax-virtualmin-01.rezitech.net
+
+Log:
+PTR record contains invalid IPv4 address 102.237.192/26.240
+A 240.237.102.38.sbl.geniesys.net. -> A 38.102.237.240, PTR lax-virtualmin-01.rezitech.net
+$h = 102.237.192/26.240	 Problem #1 - I'M MISSING 38.
+
+Forward lookup:	lax-virtualmin-01.rezitech.net	-> 1) A     38.102.237.240
+Reverse lookup: 240.237.102.38.in-addr.arpa.    -> 1) CNAME 240.192/26.237.102.38.in-addr.arpa
+                                                   2) name = lax-virtualmin-01.rezitech.net
+------------
+38.102.237.192/26.240
+
+38.102.237.192/26 -> 38.102.237.192 ... 38.102.237.255 (64)
+38.102.237.240/26 -> 38.102.237.192 ... 38.102.237.255 (64)
+38.102.237.0/26   -> 38.102.237.0   ... 38.102.237.63  (64)
+
+219.55.80/28.91
+219.55.80.91/28 -> 219.55.80.80 ... 219.55.80.95 (16)
+219.55.80.0/28  -> 219.55.80.0  ... 219.55.80.15 (16)
+
 */
-		if(count($e) != 6) {
+/*	This won't work. I can't save CIDR-notated record (or whatever else might CNAME be) "as is" because consequent lookup will never find it.
+	It actually causes IP that has associated host to be blacklisted with "Anonymous IP" reason.
+
+		$h = str_replace('.in-addr.arpa','',$h);
+		$h = str_replace('.in-addr-servers.arpa','',$h);
+		$h = implode('.',array_reverse(explode('.',$h)));
+		print_r($record);
+		echo "\$h = $h\n";
+*/
+		$patterns = array(
+			'/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.in-addr\.arpa$/'				=> '$4.$3.$2.$1',
+			'/^(\d{1,3})\.(\d{1,3})(\/\d{1,2})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.in-addr\.arpa$/'	=> '$6.$5.$4.$1'
+		);
+
+//		echo "\$h = $h\n";
+		foreach($patterns as $p => $r) {
+			//echo '$p = '.$p.', $r = '.$r."\n";
+			$x = preg_filter($p, $r, $h);
+			//echo '$x = '.$x."\n";
+			if($x) {
+				//$h = $x;
+				//print_r(cidrToRange($h));
+				//print_r(cidrToRange('38.102.237/26.240'));
+				break;
+			}
+		}
+
+/*
+		$e = explode('.',$h);
+		if(count($e) == 6) {
+			$h = $e[3].'.'.$e[2].'.'.$e[1].'.'.$e[0];
+		} elseif(count($e) == 7 && strpos($e[1],'/') !== false) {
+			$h = $e[4].'.'.$e[2].'.'.$e[1].'.'.$e[0];
+		} else {
+		//if(count($e) != 6) {
+*/
+		if($x) {
+			$h = $x;
+		} else {
 			log_error('dns_cache_add() - PTR record contains invalid IPv4 address '.$h);
 			if($settings['DEBUG']) print_r($record);
 			// attempting to repair this record
+			$e = explode('.',$h);
 			foreach($e as $k => $v) {
 				//echo '$k='.$k.', $v='.is_numeric($v)."\n";
 				if(!is_numeric($v) || (int)$v > 254) unset($e[$k]);
@@ -74,13 +139,14 @@ Non-authoritative answer:
 				return false;
 			}
 		}
+
 	} elseif( substr($h, -1) !== '.' ) {
 		$h .= '.';
 	}
 
 	unset($record['type']);
 	unset($record['host']);
-	unset($record['class']);		// Disable this line if you need to keep track of classes.
+	unset($record['class']);		// Disable this line if you want to keep track of classes.
 
 	$dns_cache['table'][$h][0] = time()+$dns_cache['TTL'];			// internal record exp. time always goes into [0]
 
