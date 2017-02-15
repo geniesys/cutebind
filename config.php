@@ -40,15 +40,15 @@ $settings['mysql']	 = array(				// MySQL connection parameters
 
 /*
     $REJECT_REASON_ENUM allows for translation of numeric return codes from sbl module to textual messages.
-    Corresponding value is appended to $settings['SBL']['txt']. The values can be customized here.
-    If you use URL, please use a hash mark (#) as the first character to keep URL syntax valid.
+    The translated value is appended to a message defined in $settings['SBL']['txt'] above.
+    If you use URL, please use a hash character (#) as the first character to keep URL syntax valid.
     Default values are the same as corresponding numeric codes.
     Examples:
-        1 => '#1'           -> www.domain.tld/sbl#1
-        1 => '#Blacklisted' -> www.domain.tld/sbl#Blacklisted
-        1 => ''             -> www.domain.tld/sbl
+        1 => '#1'           -> www.domain.tld/sbl#1		// return a numeric value (default)
+        1 => '#Blacklisted' -> www.domain.tld/sbl#Blacklisted	// return readable text
+        1 => ''             -> www.domain.tld/sbl		// don't specify reason for rejection
 
-    Note: Being too descriptive can tip spammers.
+    Please Note: Being too descriptive can tip spammers.
 */
 $REJECT_REASON_ENUM = array(
 	1   => '#1',	// Blacklisted
