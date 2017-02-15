@@ -22,7 +22,7 @@ $settings = array(
 	'cutebind_path'	=> 'cutebind',				// Path to CuteBind's executable file.
 	'accesslog'	=> APP_ROOT.'logs/%DATE=Y-m-d%.log',	// Log storage. This field has special syntax, but it allows simple path.
 	'errorlog'	=> APP_ROOT.'logs/error.log',		// Error log storage.
-	'cache_dump'	=> APP_ROOT.'logs/cache_dump.txt',	// Cache dump file.
+	'cache_dump'	=> APP_ROOT.'logs/cache_dump.json',	// Cache dump file.
 	'tmpfile'	=> '/tmp/cutebind.tmp',			// Temporary report file. CuteBind processes must have write access to this location.
 	'setuser'	=> '',					// You can set user of master process (sudo).
 	'setgroup'	=> '',					// You can set group of master process (sudo).
