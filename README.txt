@@ -45,7 +45,7 @@ New features added:
      process which is smallest number).
 
 
-Install PHP 5 standard package (latest stable).
+Install PHP 5 standard package (latest stable). [Also works with PHP 7]
 
 	Depending uppon version of your Linux, PHP may come in different packaging.
 	This software (CuteBind) depends on the following libraries which in some
